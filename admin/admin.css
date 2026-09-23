@@ -1831,3 +1831,35 @@ tbody tr:last-child td {
     }
 
 }
+
+
+/* =========================================================
+   NEXMARKET LOGO IMAGE
+   ========================================================= */
+
+.logo-mark img,
+.brand-logo img,
+.welcome-logo img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+    border-radius: inherit;
+}
+
+.logo-mark,
+.brand-logo,
+.welcome-logo {
+    overflow: hidden;
+}
+
+.admin-avatar {
+    overflow: hidden;
+}
+
+.admin-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
