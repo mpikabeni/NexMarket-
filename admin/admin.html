@@ -1,0 +1,1145 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    >
+
+    <meta name="theme-color" content="#08080c">
+
+    <title>NexMarket Admin</title>
+
+    <link rel="stylesheet" href="admin.css">
+</head>
+
+<body>
+
+    <!-- =====================================================
+         AUTHENTICATION
+    ====================================================== -->
+
+    <div id="authScreen" class="auth-screen">
+
+        <div class="auth-box">
+
+            <div class="auth-logo">
+                <div class="logo-mark">N</div>
+            </div>
+
+            <h1>NexMarket</h1>
+
+            <p class="auth-subtitle">
+                Administration NEXA
+            </p>
+
+            <div class="auth-status" id="authStatus">
+                Vérification de la session...
+            </div>
+
+            <button
+                id="authLoginButton"
+                class="primary-button hidden"
+                type="button"
+            >
+                Se connecter
+            </button>
+
+        </div>
+
+    </div>
+
+
+    <!-- =====================================================
+         ADMIN APPLICATION
+    ====================================================== -->
+
+    <div id="adminApp" class="admin-app hidden">
+
+
+        <!-- =================================================
+             SIDEBAR
+        ================================================== -->
+
+        <aside class="sidebar" id="sidebar">
+
+            <div class="sidebar-header">
+
+                <div class="brand">
+
+                    <div class="brand-logo">
+                        N
+                    </div>
+
+                    <div class="brand-text">
+                        <strong>NexMarket</strong>
+                        <span>Administration</span>
+                    </div>
+
+                </div>
+
+                <button
+                    id="closeSidebar"
+                    class="icon-button mobile-only"
+                    type="button"
+                    aria-label="Fermer"
+                >
+                    ×
+                </button>
+
+            </div>
+
+
+            <!-- Navigation -->
+
+            <nav class="sidebar-nav">
+
+                <button
+                    class="nav-item active"
+                    data-page="dashboard"
+                    type="button"
+                >
+                    <span class="nav-icon">⌂</span>
+                    <span>Vue d'ensemble</span>
+                </button>
+
+
+                <button
+                    class="nav-item"
+                    data-page="verifications"
+                    type="button"
+                >
+                    <span class="nav-icon">✓</span>
+                    <span>Vérifications</span>
+                    <span
+                        class="nav-badge"
+                        id="pendingListingsBadge"
+                    >
+                        0
+                    </span>
+                </button>
+
+
+                <button
+                    class="nav-item"
+                    data-page="transactions"
+                    type="button"
+                >
+                    <span class="nav-icon">↔</span>
+                    <span>Transactions</span>
+                    <span
+                        class="nav-badge"
+                        id="activeTransactionsBadge"
+                    >
+                        0
+                    </span>
+                </button>
+
+
+                <button
+                    class="nav-item"
+                    data-page="channels"
+                    type="button"
+                >
+                    <span class="nav-icon">▣</span>
+                    <span>Canaux</span>
+                </button>
+
+
+                <button
+                    class="nav-item"
+                    data-page="users"
+                    type="button"
+                >
+                    <span class="nav-icon">◉</span>
+                    <span>Utilisateurs</span>
+                </button>
+
+
+                <button
+                    class="nav-item"
+                    data-page="reports"
+                    type="button"
+                >
+                    <span class="nav-icon">!</span>
+                    <span>Signalements</span>
+                </button>
+
+
+                <button
+                    class="nav-item"
+                    data-page="messages"
+                    type="button"
+                >
+                    <span class="nav-icon">▱</span>
+                    <span>Messages</span>
+                </button>
+
+
+                <button
+                    class="nav-item"
+                    data-page="admins"
+                    type="button"
+                >
+                    <span class="nav-icon">◆</span>
+                    <span>Administrateurs</span>
+                </button>
+
+
+                <button
+                    class="nav-item"
+                    data-page="wallet"
+                    type="button"
+                >
+                    <span class="nav-icon">◈</span>
+                    <span>Portefeuille NEXA</span>
+                </button>
+
+            </nav>
+
+
+            <!-- Sidebar footer -->
+
+            <div class="sidebar-footer">
+
+                <div class="admin-profile">
+
+                    <div
+                        class="admin-avatar"
+                        id="adminAvatar"
+                    >
+                        N
+                    </div>
+
+                    <div class="admin-profile-info">
+
+                        <strong id="adminName">
+                            Administrateur
+                        </strong>
+
+                        <span>
+                            NEXA
+                        </span>
+
+                    </div>
+
+                </div>
+
+
+                <button
+                    id="logoutButton"
+                    class="logout-button"
+                    type="button"
+                >
+                    <span>↪</span>
+                    Déconnexion
+                </button>
+
+            </div>
+
+        </aside>
+
+
+        <!-- =================================================
+             MAIN
+        ================================================== -->
+
+        <main class="main-content">
+
+
+            <!-- Topbar -->
+
+            <header class="topbar">
+
+                <div class="topbar-left">
+
+                    <button
+                        id="openSidebar"
+                        class="icon-button mobile-only"
+                        type="button"
+                        aria-label="Menu"
+                    >
+                        ☰
+                    </button>
+
+                    <div>
+
+                        <h1 id="pageTitle">
+                            Vue d'ensemble
+                        </h1>
+
+                        <p id="pageSubtitle">
+                            Gestion de NexMarket
+                        </p>
+
+                    </div>
+
+                </div>
+
+
+                <div class="topbar-right">
+
+                    <button
+                        id="refreshButton"
+                        class="topbar-button"
+                        type="button"
+                        title="Actualiser"
+                    >
+                        ↻
+                    </button>
+
+                    <div class="live-status">
+                        <span class="status-dot"></span>
+                        <span>En ligne</span>
+                    </div>
+
+                </div>
+
+            </header>
+
+
+            <!-- =================================================
+                 PAGE CONTAINER
+            ================================================== -->
+
+            <section
+                id="pageContainer"
+                class="page-container"
+            >
+
+
+                <!-- =================================================
+                     DASHBOARD
+                ================================================== -->
+
+                <section
+                    class="admin-page active"
+                    data-section="dashboard"
+                >
+
+                    <div class="welcome-panel">
+
+                        <div>
+
+                            <span class="eyebrow">
+                                NEXA • NEXMARKET
+                            </span>
+
+                            <h2>
+                                Tableau de bord
+                            </h2>
+
+                            <p>
+                                Gérez les annonces, les transactions
+                                et les utilisateurs de NexMarket.
+                            </p>
+
+                        </div>
+
+                        <div class="welcome-logo">
+                            N
+                        </div>
+
+                    </div>
+
+
+                    <!-- Statistics -->
+
+                    <div class="stats-grid">
+
+                        <article class="stat-card">
+
+                            <div class="stat-icon purple">
+                                ◉
+                            </div>
+
+                            <div>
+
+                                <span>
+                                    Utilisateurs
+                                </span>
+
+                                <strong id="statUsers">
+                                    —
+                                </strong>
+
+                            </div>
+
+                        </article>
+
+
+                        <article class="stat-card">
+
+                            <div class="stat-icon orange">
+                                !
+                            </div>
+
+                            <div>
+
+                                <span>
+                                    Annonces en attente
+                                </span>
+
+                                <strong id="statPendingListings">
+                                    —
+                                </strong>
+
+                            </div>
+
+                        </article>
+
+
+                        <article class="stat-card">
+
+                            <div class="stat-icon blue">
+                                ↔
+                            </div>
+
+                            <div>
+
+                                <span>
+                                    Transactions actives
+                                </span>
+
+                                <strong id="statTransactions">
+                                    —
+                                </strong>
+
+                            </div>
+
+                        </article>
+
+
+                        <article class="stat-card">
+
+                            <div class="stat-icon green">
+                                ◈
+                            </div>
+
+                            <div>
+
+                                <span>
+                                    Revenus NEXA
+                                </span>
+
+                                <strong id="statRevenue">
+                                    —
+                                </strong>
+
+                            </div>
+
+                        </article>
+
+                    </div>
+
+
+                    <!-- Dashboard columns -->
+
+                    <div class="dashboard-grid">
+
+
+                        <!-- Pending listings -->
+
+                        <div class="panel">
+
+                            <div class="panel-header">
+
+                                <div>
+
+                                    <h3>
+                                        Vérifications à traiter
+                                    </h3>
+
+                                    <p>
+                                        Annonces nécessitant une validation
+                                    </p>
+
+                                </div>
+
+                                <button
+                                    class="text-button"
+                                    data-goto="verifications"
+                                    type="button"
+                                >
+                                    Voir tout
+                                </button>
+
+                            </div>
+
+                            <div
+                                id="dashboardListings"
+                                class="panel-list"
+                            >
+                                <div class="empty-state">
+                                    Aucune donnée disponible.
+                                </div>
+                            </div>
+
+                        </div>
+
+
+                        <!-- Transactions -->
+
+                        <div class="panel">
+
+                            <div class="panel-header">
+
+                                <div>
+
+                                    <h3>
+                                        Transactions actives
+                                    </h3>
+
+                                    <p>
+                                        Suivi des transactions
+                                    </p>
+
+                                </div>
+
+                                <button
+                                    class="text-button"
+                                    data-goto="transactions"
+                                    type="button"
+                                >
+                                    Voir tout
+                                </button>
+
+                            </div>
+
+                            <div
+                                id="dashboardTransactions"
+                                class="panel-list"
+                            >
+                                <div class="empty-state">
+                                    Aucune donnée disponible.
+                                </div>
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </section>
+
+
+                <!-- =================================================
+                     VERIFICATIONS
+                ================================================== -->
+
+                <section
+                    class="admin-page"
+                    data-section="verifications"
+                >
+
+                    <div class="section-header">
+
+                        <div>
+
+                            <h2>
+                                Vérifications
+                            </h2>
+
+                            <p>
+                                Validez les annonces avant leur publication.
+                            </p>
+
+                        </div>
+
+                        <button
+                            class="secondary-button"
+                            id="refreshListings"
+                            type="button"
+                        >
+                            ↻ Actualiser
+                        </button>
+
+                    </div>
+
+
+                    <div class="filter-bar">
+
+                        <input
+                            id="listingSearch"
+                            class="search-input"
+                            type="search"
+                            placeholder="Rechercher un canal..."
+                        >
+
+                        <select
+                            id="listingStatusFilter"
+                            class="select-input"
+                        >
+                            <option value="pending">
+                                En attente
+                            </option>
+
+                            <option value="available">
+                                Publiées
+                            </option>
+
+                            <option value="rejected">
+                                Rejetées
+                            </option>
+
+                            <option value="all">
+                                Toutes
+                            </option>
+                        </select>
+
+                    </div>
+
+
+                    <div class="table-panel">
+
+                        <div class="table-wrapper">
+
+                            <table>
+
+                                <thead>
+
+                                    <tr>
+                                        <th>Canal</th>
+                                        <th>Vendeur</th>
+                                        <th>Prix</th>
+                                        <th>Abonnés</th>
+                                        <th>Statut</th>
+                                        <th>Action</th>
+                                    </tr>
+
+                                </thead>
+
+                                <tbody id="listingsTableBody">
+
+                                </tbody>
+
+                            </table>
+
+                        </div>
+
+                    </div>
+
+                </section>
+
+
+                <!-- =================================================
+                     TRANSACTIONS
+                ================================================== -->
+
+                <section
+                    class="admin-page"
+                    data-section="transactions"
+                >
+
+                    <div class="section-header">
+
+                        <div>
+
+                            <h2>
+                                Transactions
+                            </h2>
+
+                            <p>
+                                Gérez les achats et les transferts.
+                            </p>
+
+                        </div>
+
+                        <button
+                            class="secondary-button"
+                            id="refreshTransactions"
+                            type="button"
+                        >
+                            ↻ Actualiser
+                        </button>
+
+                    </div>
+
+
+                    <div class="filter-bar">
+
+                        <input
+                            id="transactionSearch"
+                            class="search-input"
+                            type="search"
+                            placeholder="Rechercher une transaction..."
+                        >
+
+                        <select
+                            id="transactionStatusFilter"
+                            class="select-input"
+                        >
+
+                            <option value="all">
+                                Tous les statuts
+                            </option>
+
+                            <option value="waiting_admin">
+                                En attente d'un admin
+                            </option>
+
+                            <option value="assigned">
+                                Assignées
+                            </option>
+
+                            <option value="transfer_pending">
+                                Transfert en cours
+                            </option>
+
+                            <option value="disputed">
+                                Litiges
+                            </option>
+
+                            <option value="completed">
+                                Terminées
+                            </option>
+
+                            <option value="cancelled">
+                                Annulées
+                            </option>
+
+                        </select>
+
+                    </div>
+
+
+                    <div class="table-panel">
+
+                        <div class="table-wrapper">
+
+                            <table>
+
+                                <thead>
+
+                                    <tr>
+                                        <th>Référence</th>
+                                        <th>Canal</th>
+                                        <th>Acheteur</th>
+                                        <th>Vendeur</th>
+                                        <th>Montant</th>
+                                        <th>Statut</th>
+                                        <th>Action</th>
+                                    </tr>
+
+                                </thead>
+
+                                <tbody id="transactionsTableBody">
+
+                                </tbody>
+
+                            </table>
+
+                        </div>
+
+                    </div>
+
+                </section>
+
+
+                <!-- =================================================
+                     CANAUX
+                ================================================== -->
+
+                <section
+                    class="admin-page"
+                    data-section="channels"
+                >
+
+                    <div class="section-header">
+
+                        <div>
+
+                            <h2>
+                                Canaux Telegram
+                            </h2>
+
+                            <p>
+                                Consultez les canaux présents sur NexMarket.
+                            </p>
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="table-panel">
+
+                        <div class="table-wrapper">
+
+                            <table>
+
+                                <thead>
+
+                                    <tr>
+                                        <th>Canal</th>
+                                        <th>Catégorie</th>
+                                        <th>Pays</th>
+                                        <th>Langue</th>
+                                        <th>Abonnés</th>
+                                        <th>Vérification</th>
+                                    </tr>
+
+                                </thead>
+
+                                <tbody id="channelsTableBody">
+
+                                </tbody>
+
+                            </table>
+
+                        </div>
+
+                    </div>
+
+                </section>
+
+
+                <!-- =================================================
+                     USERS
+                ================================================== -->
+
+                <section
+                    class="admin-page"
+                    data-section="users"
+                >
+
+                    <div class="section-header">
+
+                        <div>
+
+                            <h2>
+                                Utilisateurs
+                            </h2>
+
+                            <p>
+                                Utilisateurs inscrits sur NexMarket.
+                            </p>
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="filter-bar">
+
+                        <input
+                            id="userSearch"
+                            class="search-input"
+                            type="search"
+                            placeholder="Rechercher un utilisateur..."
+                        >
+
+                    </div>
+
+
+                    <div class="table-panel">
+
+                        <div class="table-wrapper">
+
+                            <table>
+
+                                <thead>
+
+                                    <tr>
+                                        <th>Utilisateur</th>
+                                        <th>NEXA ID</th>
+                                        <th>Telegram</th>
+                                        <th>Devise</th>
+                                        <th>Inscription</th>
+                                        <th>Statut</th>
+                                    </tr>
+
+                                </thead>
+
+                                <tbody id="usersTableBody">
+
+                                </tbody>
+
+                            </table>
+
+                        </div>
+
+                    </div>
+
+                </section>
+
+
+                <!-- =================================================
+                     REPORTS
+                ================================================== -->
+
+                <section
+                    class="admin-page"
+                    data-section="reports"
+                >
+
+                    <div class="section-header">
+
+                        <div>
+
+                            <h2>
+                                Signalements
+                            </h2>
+
+                            <p>
+                                Traitez les signalements envoyés par les utilisateurs.
+                            </p>
+
+                        </div>
+
+                    </div>
+
+
+                    <div
+                        id="reportsList"
+                        class="cards-list"
+                    >
+
+                        <div class="empty-state">
+                            Aucun signalement disponible.
+                        </div>
+
+                    </div>
+
+                </section>
+
+
+                <!-- =================================================
+                     MESSAGES
+                ================================================== -->
+
+                <section
+                    class="admin-page"
+                    data-section="messages"
+                >
+
+                    <div class="section-header">
+
+                        <div>
+
+                            <h2>
+                                Messages
+                            </h2>
+
+                            <p>
+                                Conversations liées aux transactions.
+                            </p>
+
+                        </div>
+
+                    </div>
+
+
+                    <div
+                        id="messagesList"
+                        class="cards-list"
+                    >
+
+                        <div class="empty-state">
+                            Sélectionnez une transaction pour voir sa conversation.
+                        </div>
+
+                    </div>
+
+                </section>
+
+
+                <!-- =================================================
+                     ADMINS
+                ================================================== -->
+
+                <section
+                    class="admin-page"
+                    data-section="admins"
+                >
+
+                    <div class="section-header">
+
+                        <div>
+
+                            <h2>
+                                Administrateurs
+                            </h2>
+
+                            <p>
+                                Gestion des administrateurs NexMarket.
+                            </p>
+
+                        </div>
+
+                    </div>
+
+
+                    <div
+                        id="adminsList"
+                        class="cards-list"
+                    >
+
+                        <div class="empty-state">
+                            Gestion des administrateurs disponible côté backend.
+                        </div>
+
+                    </div>
+
+                </section>
+
+
+                <!-- =================================================
+                     WALLET PLATFORM
+                ================================================== -->
+
+                <section
+                    class="admin-page"
+                    data-section="wallet"
+                >
+
+                    <div class="section-header">
+
+                        <div>
+
+                            <h2>
+                                Portefeuille NEXA
+                            </h2>
+
+                            <p>
+                                Suivi des commissions de NexMarket.
+                            </p>
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="wallet-admin-grid">
+
+                        <div class="wallet-balance-panel">
+
+                            <span>
+                                Solde disponible
+                            </span>
+
+                            <strong id="platformBalance">
+                                —
+                            </strong>
+
+                            <small id="platformCurrency">
+                                XAF
+                            </small>
+
+                        </div>
+
+
+                        <div class="wallet-balance-panel">
+
+                            <span>
+                                Revenus
+                            </span>
+
+                            <strong id="platformRevenue">
+                                —
+                            </strong>
+
+                            <small>
+                                Commissions NexMarket
+                            </small>
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="table-panel">
+
+                        <div class="panel-header">
+
+                            <div>
+
+                                <h3>
+                                    Journal des opérations
+                                </h3>
+
+                            </div>
+
+                        </div>
+
+                        <div class="table-wrapper">
+
+                            <table>
+
+                                <thead>
+
+                                    <tr>
+                                        <th>Référence</th>
+                                        <th>Opération</th>
+                                        <th>Montant</th>
+                                        <th>Direction</th>
+                                        <th>Date</th>
+                                    </tr>
+
+                                </thead>
+
+                                <tbody id="platformLedgerBody">
+
+                                </tbody>
+
+                            </table>
+
+                        </div>
+
+                    </div>
+
+                </section>
+
+            </section>
+
+        </main>
+
+    </div>
+
+
+    <!-- =====================================================
+         MODAL
+    ====================================================== -->
+
+    <div
+        id="modalOverlay"
+        class="modal-overlay hidden"
+    >
+
+        <div
+            id="adminModal"
+            class="admin-modal"
+        >
+
+            <button
+                id="closeModal"
+                class="modal-close"
+                type="button"
+            >
+                ×
+            </button>
+
+            <div id="modalContent"></div>
+
+        </div>
+
+    </div>
+
+
+    <!-- =====================================================
+         TOAST
+    ====================================================== -->
+
+    <div
+        id="toast"
+        class="toast"
+    >
+        <span id="toastMessage"></span>
+    </div>
+
+
+    <script src="admin.js"></script>
+
+</body>
+</html>
