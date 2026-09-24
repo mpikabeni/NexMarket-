@@ -143,7 +143,7 @@ a {
 .splash-screen {
     position: fixed;
     inset: 0;
-    z-index: 9999;
+    z-index: 99999;
 
     display: flex;
     flex-direction: column;
@@ -160,11 +160,20 @@ a {
         ),
         #08080c;
 
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+
     transition:
         opacity 500ms ease,
         visibility 500ms ease;
 }
 
+/* IMPORTANT :
+   le JS utilise "hidden", donc le CSS doit aussi
+   reconnaître cette classe. */
+
+.splash-screen.hidden,
 .splash-screen.hide {
     opacity: 0;
     visibility: hidden;
@@ -175,6 +184,8 @@ a {
     display: flex;
     flex-direction: column;
     align-items: center;
+    justify-content: center;
+
     text-align: center;
 
     animation: splashEnter 700ms ease both;
@@ -203,15 +214,19 @@ a {
 
     margin-bottom: 22px;
 
+    overflow: hidden;
+
     animation:
         logoFloat 3s ease-in-out infinite;
 }
 
-.splash-logo span {
-    font-size: 46px;
-    line-height: 1;
-    font-weight: 800;
-    letter-spacing: -4px;
+.splash-logo img {
+    width: 100%;
+    height: 100%;
+
+    object-fit: contain;
+
+    border-radius: inherit;
 }
 
 .splash-content h1 {
@@ -240,9 +255,11 @@ a {
     height: 6px;
 
     border-radius: 50%;
+
     background: var(--purple-light);
 
-    animation: loaderPulse 1.2s infinite ease-in-out;
+    animation:
+        loaderPulse 1.2s infinite ease-in-out;
 }
 
 .splash-loader span:nth-child(2) {
@@ -250,7 +267,7 @@ a {
 }
 
 .splash-loader span:nth-child(3) {
-    animation-delay: .3s;
+    animation-delay: .30s;
 }
 
 .splash-footer {
@@ -267,6 +284,36 @@ a {
 }
 
 
+/* =========================================================
+   APPLICATION
+   ========================================================= */
+
+.app {
+    position: relative;
+
+    width: 100%;
+    min-height: 100vh;
+
+    display: block;
+
+    opacity: 1;
+
+    transition:
+        opacity 350ms ease;
+}
+
+/* L'application est cachée UNIQUEMENT
+   avant que le JS démarre. */
+
+.app.hidden {
+    display: none !important;
+}
+
+.app:not(.hidden) {
+    display: block;
+}
+   
+   
 /* =========================================================
    APP
    ========================================================= */
