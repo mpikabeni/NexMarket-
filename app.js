@@ -7180,92 +7180,129 @@
 
 
     /* =====================================================
-       SPLASH SCREEN
-    ===================================================== */
+   SPLASH SCREEN
+===================================================== */
 
-    function hideSplash() {
+function showApplication() {
 
-        if (!DOM.splash) {
-            return;
+    if (!DOM.app) {
+        return;
+    }
+
+    DOM.app.classList.remove("hidden");
+
+    DOM.app.style.display = "block";
+    DOM.app.style.visibility = "visible";
+    DOM.app.style.opacity = "1";
+}
+
+
+function hideSplash() {
+
+    // L'application doit toujours être visible
+    showApplication();
+
+    if (!DOM.splash) {
+        return;
+    }
+
+    DOM.splash.classList.add("hidden");
+    DOM.splash.classList.add("hide");
+
+    DOM.splash.style.opacity = "0";
+    DOM.splash.style.visibility = "hidden";
+    DOM.splash.style.pointerEvents = "none";
+
+    setTimeout(() => {
+
+        if (DOM.splash) {
+            DOM.splash.style.display = "none";
         }
 
-
-        DOM.splash.classList.add(
-            "hidden"
-        );
+    }, 550);
+}
 
 
-        setTimeout(
-            () => {
+/* =====================================================
+   APP START
+===================================================== */
 
-                DOM.splash.style.display =
-                    "none";
+async function initApp() {
 
-            },
-            500
+    /*
+       Afficher l'application AVANT les appels réseau.
+       Render ne doit jamais pouvoir laisser l'écran noir.
+    */
+
+    showApplication();
+    hideSplash();
+
+
+    try {
+
+        initTelegram();
+
+        setupHeader();
+
+        setupBottomNavigation();
+
+        setupModal();
+
+    } catch (error) {
+
+        console.error(
+            "Erreur interface NexMarket:",
+            error
         );
     }
 
 
-    /* =====================================================
-       APP START
-    ===================================================== */
+    /*
+       Charger l'utilisateur sans bloquer
+       l'affichage de l'application.
+    */
 
-    async function initApp() {
+    try {
 
-        try {
+        await loadCurrentUser();
 
-            initTelegram();
+    } catch (error) {
 
-            setupHeader();
-
-            setupBottomNavigation();
-
-            setupModal();
-
-
-            await loadCurrentUser();
-
-
-            await navigateTo(
-                "home"
-            );
-
-
-        } catch (error) {
-
-            console.error(
-                "Erreur initialisation NexMarket:",
-                error
-            );
-
-
-            if (DOM.pageContainer) {
-
-                DOM.pageContainer.innerHTML =
-                    showEmpty(
-                        "NexMarket",
-                        "Une erreur est survenue lors du chargement de l'application.",
-                        ICONS.help
-                    );
-            }
-
-
-            showToast(
-                "Erreur",
-                error.message ||
-                "Impossible de charger NexMarket."
-            );
-
-        } finally {
-
-            setTimeout(
-                hideSplash,
-                700
-            );
-        }
+        console.warn(
+            "Utilisateur non chargé:",
+            error
+        );
     }
 
+
+    /*
+       Charger la page d'accueil.
+    */
+
+    try {
+
+        await navigateTo("home");
+
+    } catch (error) {
+
+        console.error(
+            "Erreur accueil NexMarket:",
+            error
+        );
+
+        if (DOM.pageContainer) {
+
+            DOM.pageContainer.innerHTML =
+                showEmpty(
+                    "NexMarket",
+                    "Impossible de charger les annonces pour le moment.",
+                    ICONS.help
+                );
+        }
+
+    }
+
+}
 
     /* =====================================================
        DOM READY
