@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    >
+
+    <meta name="theme-color" content="#08080c">
+    <meta name="color-scheme" content="dark">
+
+    <title>NexMarket</title>
+
+    <meta
+        name="description"
+        content="NexMarket — La marketplace des canaux Telegram en Afrique."
+    >
+
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+<!-- =========================================================
+     SPLASH SCREEN
+========================================================= -->
+
+<div id="splashScreen" class="splash-screen">
+
+    <div class="splash-content">
+
+        <div class="splash-logo">
+    <img src="logo.png" alt="NexMarket">
+      </div>
+
+        <h1>NexMarket</h1>
+
+        <p>
+            La marketplace des canaux Telegram
+        </p>
+
+        <div class="splash-loader">
+            <span></span>
+            <span></span>
+            <span></span>
+        </div>
+
+    </div>
+
+    <div class="splash-footer">
+        Propulsé par <strong>NEXA</strong>
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     APPLICATION
+========================================================= -->
+
+<div id="app" class="app hidden">
+
+    <!-- =====================================================
+         HEADER
+    ====================================================== -->
+
+    <header class="top-header">
+
+        <div class="header-left">
+
+            <!-- Photo Telegram -->
+            <button
+                id="profileAvatarButton"
+                class="profile-avatar-button"
+                type="button"
+                aria-label="Ouvrir le portefeuille"
+            >
+
+                <div class="avatar-wrapper">
+
+                    <img
+                        id="telegramAvatar"
+                        class="telegram-avatar hidden"
+                        src=""
+                        alt="Profil Telegram"
+                    >
+
+                    <div
+                        id="avatarLetter"
+                        class="avatar-letter"
+                    >
+                        N
+                    </div>
+
+                    <span class="avatar-online"></span>
+
+                </div>
+
+            </button>
+
+            <div class="header-title-area">
+
+                <span class="header-small-text">
+                    Bienvenue
+                </span>
+
+                <h1>
+                    NexMarket
+                </h1>
+
+                <span
+                    id="headerGreeting"
+                    class="header-greeting"
+                >
+                    Marketplace Telegram
+                </span>
+
+            </div>
+
+        </div>
+
+
+        <div class="header-actions">
+
+            <button
+                id="headerSearchButton"
+                class="icon-button"
+                type="button"
+                aria-label="Rechercher"
+            >
+
+                <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+                    <circle cx="11" cy="11" r="7"></circle>
+                    <path d="m20 20-4-4"></path>
+                </svg>
+
+            </button>
+
+        </div>
+
+    </header>
+
+
+    <!-- =====================================================
+         MAIN
+    ====================================================== -->
+
+    <main
+        id="pageContainer"
+        class="page-container"
+    >
+
+        <!-- Les pages sont injectées par app.js -->
+
+    </main>
+
+
+    <!-- =====================================================
+         FAQ
+    ====================================================== -->
+
+    <button
+        id="faqButton"
+        class="faq-floating-button"
+        type="button"
+        aria-label="Questions fréquentes"
+        title="Questions fréquentes"
+    >
+
+        <span>?</span>
+
+    </button>
+
+
+    <!-- =====================================================
+         BOTTOM NAVIGATION
+    ====================================================== -->
+
+    <nav
+        class="bottom-navigation"
+        id="bottomNavigation"
+        aria-label="Navigation principale"
+    >
+
+        <!-- ACCUEIL -->
+
+        <button
+            class="nav-item active"
+            data-page="home"
+            type="button"
+        >
+
+            <span class="nav-icon">
+
+                <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+
+                    <path d="M3 10.5 12 3l9 7.5"></path>
+
+                    <path d="M5.5 9.5V21h13V9.5"></path>
+
+                    <path d="M9.5 21v-6h5v6"></path>
+
+                </svg>
+
+            </span>
+
+            <span class="nav-label">
+                Accueil
+            </span>
+
+        </button>
+
+
+        <!-- ACHETER -->
+
+        <button
+            class="nav-item"
+            data-page="buy"
+            type="button"
+        >
+
+            <span class="nav-icon">
+
+                <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+
+                    <path d="M6 7h12l1.2 13H4.8L6 7Z"></path>
+
+                    <path d="M9 7a3 3 0 0 1 6 0"></path>
+
+                    <path d="M9 11h.01"></path>
+                    <path d="M15 11h.01"></path>
+
+                </svg>
+
+            </span>
+
+            <span class="nav-label">
+                Acheter
+            </span>
+
+        </button>
+
+
+        <!-- VENDRE -->
+
+        <button
+            class="nav-item"
+            data-page="sell"
+            type="button"
+        >
+
+            <span class="nav-icon">
+
+                <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+
+                    <path d="M12 19V5"></path>
+
+                    <path d="m6.5 10.5 5.5-5.5 5.5 5.5"></path>
+
+                    <path d="M5 19h14"></path>
+
+                </svg>
+
+            </span>
+
+            <span class="nav-label">
+                Vendre
+            </span>
+
+        </button>
+
+
+        <!-- MESSAGES -->
+
+        <button
+            class="nav-item"
+            data-page="messages"
+            type="button"
+        >
+
+            <span class="nav-icon">
+
+                <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+
+                    <path
+                        d="M20 11.5a7.5 7.5 0 0 1-7.8 7.5 8.5 8.5 0 0 1-3.4-.7L4 20l1.4-4.2A7.3 7.3 0 0 1 4.5 12 7.5 7.5 0 0 1 12 4.5h.5A7.5 7.5 0 0 1 20 11.5Z"
+                    ></path>
+
+                    <path d="M8.5 12h.01"></path>
+                    <path d="M12 12h.01"></path>
+                    <path d="M15.5 12h.01"></path>
+
+                </svg>
+
+            </span>
+
+            <span class="nav-label">
+                Messages
+            </span>
+
+        </button>
+
+
+        <!-- PROFIL -->
+
+        <button
+            class="nav-item"
+            data-page="profile"
+            type="button"
+        >
+
+            <span class="nav-icon">
+
+                <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+
+                    <circle
+                        cx="12"
+                        cy="8"
+                        r="3.5"
+                    ></circle>
+
+                    <path
+                        d="M5 20a7 7 0 0 1 14 0"
+                    ></path>
+
+                </svg>
+
+            </span>
+
+            <span class="nav-label">
+                Profil
+            </span>
+
+        </button>
+
+    </nav>
+
+
+    <!-- =====================================================
+         TOAST
+    ====================================================== -->
+
+    <div
+        id="toast"
+        class="toast"
+        role="status"
+        aria-live="polite"
+    >
+        <div class="toast-icon"></div>
+
+        <div class="toast-content">
+            <strong id="toastTitle"></strong>
+            <span id="toastMessage"></span>
+        </div>
+    </div>
+
+
+    <!-- =====================================================
+         MODAL
+    ====================================================== -->
+
+    <div
+        id="modalContainer"
+        class="modal-container hidden"
+        aria-hidden="true"
+    >
+
+        <div
+            id="modalOverlay"
+            class="modal-overlay"
+        ></div>
+
+        <div
+            id="modalContent"
+            class="modal-content"
+            role="dialog"
+            aria-modal="true"
+        >
+
+            <button
+                id="modalClose"
+                class="modal-close"
+                type="button"
+                aria-label="Fermer"
+            >
+
+                <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                >
+
+                    <path d="M6 6l12 12"></path>
+                    <path d="M18 6 6 18"></path>
+
+                </svg>
+
+            </button>
+
+            <div id="modalBody"></div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     TELEGRAM WEB APP
+========================================================= -->
+
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+<!-- =========================================================
+     APPLICATION JAVASCRIPT
+========================================================= -->
+
+<script src="app.js"></script>
+
+</body>
+</html>
