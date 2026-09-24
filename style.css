@@ -546,3 +546,461 @@ svg{display:block;width:20px;height:20px;max-width:100%;flex:0 0 auto}
   to{opacity:1;transform:translateY(0)}
 }
 @keyframes spinner{to{transform:rotate(360deg)}}
+
+
+/* =========================================================
+   NEXMARKET — CORRECTION PROFIL + VENTE
+   ========================================================= */
+
+/* ---------- ESPACEMENT DES PAGES ---------- */
+
+.page-heading {
+    padding-top: 22px;
+}
+
+/* ---------- PROFIL ---------- */
+
+.profile-page {
+    width: 100%;
+    animation: pageEnter .28s ease both;
+}
+
+.profile-header {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 16px;
+    padding: 22px 4px 18px;
+    text-align: left;
+}
+
+.profile-avatar-large {
+    width: 76px;
+    height: 76px;
+    min-width: 76px;
+    border-radius: 50%;
+    overflow: hidden;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    background: linear-gradient(
+        145deg,
+        #8b5cf6,
+        #5b21b6
+    );
+
+    border: 2px solid rgba(139, 92, 246, .35);
+
+    box-shadow:
+        0 0 25px rgba(139, 92, 246, .18);
+}
+
+.profile-avatar-large img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.profile-avatar-large span {
+    font-size: 26px;
+    font-weight: 800;
+    color: white;
+}
+
+.profile-header h1 {
+    margin-top: 4px;
+    font-size: 27px;
+    line-height: 1.1;
+    letter-spacing: -.7px;
+}
+
+.profile-header p {
+    margin-top: 5px;
+    color: var(--text-muted);
+    font-size: 11px;
+}
+
+
+/* ---------- PORTEFEUILLE PROFIL ---------- */
+
+.profile-wallet {
+    width: 100%;
+
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    padding: 16px;
+
+    border-radius: 18px;
+
+    background:
+        radial-gradient(
+            circle at 100% 0%,
+            rgba(139, 92, 246, .14),
+            transparent 40%
+        ),
+        var(--surface);
+
+    border: 1px solid var(--border);
+
+    box-shadow:
+        0 10px 30px rgba(0, 0, 0, .2);
+}
+
+.profile-wallet > svg {
+    width: 23px;
+    height: 23px;
+    color: var(--purple-light);
+}
+
+.profile-wallet > div {
+    min-width: 0;
+    flex: 1;
+}
+
+.profile-wallet > div span {
+    display: block;
+    color: var(--text-muted);
+    font-size: 9px;
+}
+
+.profile-wallet > div strong {
+    display: block;
+    margin-top: 4px;
+
+    color: white;
+    font-size: 16px;
+    font-weight: 800;
+}
+
+.profile-wallet .text-button {
+    flex: 0 0 auto;
+}
+
+
+/* ---------- MENU PROFIL ---------- */
+
+.profile-menu {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    margin-top: 13px;
+}
+
+.profile-menu > button {
+    width: 100%;
+    min-height: 61px;
+
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    padding: 12px 14px;
+
+    border-radius: 17px;
+
+    background:
+        linear-gradient(
+            135deg,
+            rgba(255,255,255,.045),
+            rgba(255,255,255,.025)
+        );
+
+    border: 1px solid var(--border);
+
+    color: var(--text);
+
+    text-align: left;
+
+    transition:
+        transform .18s ease,
+        background .18s ease,
+        border-color .18s ease;
+}
+
+.profile-menu > button:hover {
+    background: rgba(139, 92, 246, .08);
+    border-color: rgba(139, 92, 246, .22);
+}
+
+.profile-menu > button:active {
+    transform: scale(.98);
+}
+
+.profile-menu > button > svg:first-child {
+    width: 20px;
+    height: 20px;
+
+    color: var(--purple-light);
+
+    flex: 0 0 auto;
+}
+
+.profile-menu > button > span {
+    flex: 1;
+
+    font-size: 12px;
+    font-weight: 650;
+}
+
+.profile-menu > button > svg:last-child {
+    width: 17px;
+    height: 17px;
+
+    color: var(--text-muted);
+
+    flex: 0 0 auto;
+}
+
+
+/* ---------- VERSION PROFIL ---------- */
+
+.profile-page .version-item {
+    margin-top: 8px;
+}
+
+
+/* =========================================================
+   PAGE VENDRE
+   ========================================================= */
+
+.sell-page {
+    width: 100%;
+    padding-bottom: 25px;
+}
+
+.sell-page .page-heading {
+    padding-bottom: 15px;
+}
+
+.sell-page .page-heading h1 {
+    font-size: 28px;
+}
+
+
+/* ---------- NOTICE VERIFICATION ---------- */
+
+.sell-notice {
+    width: 100%;
+
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+
+    padding: 15px;
+
+    margin-bottom: 14px;
+
+    border-radius: 18px;
+
+    background:
+        linear-gradient(
+            135deg,
+            rgba(139, 92, 246, .11),
+            rgba(139, 92, 246, .035)
+        );
+
+    border: 1px solid rgba(139, 92, 246, .2);
+}
+
+.sell-notice > svg {
+    width: 21px;
+    height: 21px;
+
+    color: var(--purple-light);
+
+    flex: 0 0 auto;
+}
+
+.sell-notice strong {
+    display: block;
+
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.sell-notice p {
+    margin-top: 4px;
+
+    color: var(--text-muted);
+
+    font-size: 10px;
+    line-height: 1.5;
+}
+
+
+/* ---------- FORMULAIRE VENTE ---------- */
+
+.sell-form {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+
+    padding: 18px;
+
+    border-radius: 22px;
+
+    background: var(--surface);
+
+    border: 1px solid var(--border);
+
+    box-shadow:
+        0 12px 35px rgba(0,0,0,.2);
+}
+
+.sell-form label {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+
+    color: var(--text-soft);
+
+    font-size: 10px;
+    font-weight: 650;
+}
+
+.sell-form input,
+.sell-form select,
+.sell-form textarea {
+    width: 100%;
+
+    min-height: 49px;
+
+    padding: 13px 14px;
+
+    border-radius: 15px;
+
+    border: 1px solid rgba(255,255,255,.08);
+
+    outline: none;
+
+    background: #181820;
+
+    color: white;
+
+    font-size: 12px;
+
+    transition:
+        border-color .18s ease,
+        box-shadow .18s ease,
+        background .18s ease;
+}
+
+.sell-form input:hover,
+.sell-form select:hover,
+.sell-form textarea:hover {
+    border-color: rgba(255,255,255,.14);
+}
+
+.sell-form input:focus,
+.sell-form select:focus,
+.sell-form textarea:focus {
+    border-color: rgba(139, 92, 246, .55);
+
+    background: #1b1a24;
+
+    box-shadow:
+        0 0 0 3px rgba(139, 92, 246, .08);
+}
+
+.sell-form input::placeholder,
+.sell-form textarea::placeholder {
+    color: #666672;
+}
+
+.sell-form textarea {
+    min-height: 125px;
+    resize: vertical;
+    line-height: 1.5;
+}
+
+.sell-form select {
+    appearance: auto;
+}
+
+.sell-form small {
+    color: var(--text-muted);
+
+    font-size: 9px;
+    font-weight: 400;
+
+    line-height: 1.4;
+}
+
+
+/* ---------- BOUTON PUBLIER ---------- */
+
+.sell-form .full-width {
+    width: 100%;
+    min-height: 52px;
+
+    margin-top: 3px;
+
+    border-radius: 16px;
+}
+
+.sell-form .primary-action {
+    justify-content: center;
+
+    background:
+        linear-gradient(
+            135deg,
+            #8b5cf6,
+            #6735c7
+        );
+
+    color: white;
+
+    box-shadow:
+        0 10px 30px rgba(139, 92, 246, .2);
+}
+
+
+/* ---------- MES ANNONCES ---------- */
+
+.my-listings-section {
+    margin-top: 24px;
+    padding-bottom: 20px;
+}
+
+
+/* ---------- MOBILE ---------- */
+
+@media (max-width: 520px) {
+
+    .profile-header {
+        gap: 13px;
+        padding-top: 18px;
+    }
+
+    .profile-avatar-large {
+        width: 66px;
+        height: 66px;
+        min-width: 66px;
+    }
+
+    .profile-header h1 {
+        font-size: 23px;
+    }
+
+    .profile-wallet {
+        padding: 14px;
+    }
+
+    .profile-menu > button {
+        min-height: 58px;
+    }
+
+    .sell-form {
+        padding: 15px;
+        border-radius: 19px;
+    }
+
+    .sell-notice {
+        padding: 13px;
+    }
+}
+
