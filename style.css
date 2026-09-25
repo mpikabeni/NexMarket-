@@ -1369,3 +1369,216 @@ body.category-picker-open {
 .splash-screen.hide {
     transition: opacity .6s ease, visibility .6s ease !important;
 }
+
+
+/* =========================================================
+   NEXMARKET — ADMINISTRATION / MODALES
+   ========================================================= */
+
+.admin-login {
+    width: 100%;
+    max-width: 100%;
+}
+
+.admin-login .modal-header-content {
+    margin-bottom: 18px;
+}
+
+.admin-login .modal-header-content h2 {
+    margin: 0;
+    color: #ffffff;
+    font-size: 25px;
+    font-weight: 800;
+    line-height: 1.15;
+}
+
+.admin-login .modal-form {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.admin-login .modal-form label {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+
+    width: 100%;
+
+    color: #eeeeF4;
+    font-size: 12px;
+    font-weight: 650;
+    line-height: 1.3;
+}
+
+.admin-login #adminCode {
+    box-sizing: border-box;
+
+    width: 100%;
+    min-height: 50px;
+
+    padding: 13px 15px;
+
+    border-radius: 15px;
+    border: 1px solid rgba(255,255,255,.10);
+
+    outline: none;
+
+    background: #181720 !important;
+    color: #ffffff !important;
+
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 500;
+
+    appearance: none;
+    -webkit-appearance: none;
+
+    transition:
+        border-color .2s ease,
+        box-shadow .2s ease,
+        background .2s ease;
+}
+
+.admin-login #adminCode::placeholder {
+    color: #777784;
+}
+
+.admin-login #adminCode:focus {
+    border-color: rgba(139,92,246,.65);
+
+    background: #1c1a27 !important;
+
+    box-shadow:
+        0 0 0 3px rgba(139,92,246,.10),
+        0 0 25px rgba(139,92,246,.08);
+}
+
+.admin-login .primary-action.full-width {
+    box-sizing: border-box;
+
+    width: 100% !important;
+    min-height: 52px;
+
+    margin-top: 2px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border: 0;
+    border-radius: 16px;
+
+    background:
+        linear-gradient(
+            135deg,
+            #8b5cf6,
+            #6735c7
+        ) !important;
+
+    color: #ffffff !important;
+
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 750;
+
+    cursor: pointer;
+
+    box-shadow:
+        0 10px 28px rgba(139,92,246,.20);
+
+    appearance: none;
+    -webkit-appearance: none;
+
+    transition:
+        transform .15s ease,
+        filter .15s ease,
+        box-shadow .15s ease;
+}
+
+.admin-login .primary-action.full-width:hover {
+    filter: brightness(1.08);
+}
+
+.admin-login .primary-action.full-width:active {
+    transform: scale(.97);
+}
+
+
+/* =========================================================
+   TOUS LES CHAMPS DES MODALES
+   ========================================================= */
+
+.modal-content input,
+.modal-content select,
+.modal-content textarea {
+    box-sizing: border-box;
+
+    font-family: inherit;
+}
+
+.modal-content input:not([type="checkbox"]):not([type="radio"]),
+.modal-content select,
+.modal-content textarea {
+    width: 100%;
+
+    min-height: 48px;
+
+    padding: 12px 14px;
+
+    border-radius: 14px;
+    border: 1px solid rgba(255,255,255,.09);
+
+    outline: none;
+
+    background: #181720 !important;
+    color: #ffffff !important;
+
+    font-size: 12px;
+
+    appearance: none;
+    -webkit-appearance: none;
+}
+
+.modal-content input:focus,
+.modal-content select:focus,
+.modal-content textarea:focus {
+    border-color: rgba(139,92,246,.60);
+
+    box-shadow:
+        0 0 0 3px rgba(139,92,246,.08);
+
+    background: #1c1a27 !important;
+}
+
+
+/* =========================================================
+   PARAMÈTRES
+   ========================================================= */
+
+.modal-content .settings-list > button {
+    appearance: none;
+    -webkit-appearance: none;
+
+    cursor: pointer;
+}
+
+.modal-content .settings-list > button:active {
+    transform: scale(.985);
+}
+
+
+/* =========================================================
+   VERSION — ACCÈS ADMIN
+   ========================================================= */
+
+#profileVersion {
+    cursor: pointer !important;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+#profileVersion:active {
+    transform: scale(.97);
+}
