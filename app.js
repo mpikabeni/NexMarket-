@@ -748,52 +748,53 @@
 
     function updateTelegramProfile() {
 
-        const telegramUser = getTelegramUser() || {};
-        const backendUser = state.user || {};
+        const user =
+            state.user ||
+            getTelegramUser();
 
-        // Telegram reste la source prioritaire pour la photo.
-        // Le backend peut ne pas renvoyer photo_url.
-        const user = {
-            ...backendUser,
-            ...telegramUser,
-            photo_url:
-                telegramUser.photo_url ||
-                backendUser.photo_url ||
-                ""
-        };
-
-        if (!user.first_name && !user.photo_url) {
+        if (!user) {
             return;
         }
 
         if (DOM.headerGreeting) {
+
             DOM.headerGreeting.textContent =
                 `Bonjour ${user.first_name || "à vous"}`;
         }
 
-        if (DOM.avatarLetter) {
-            DOM.avatarLetter.textContent =
-                getInitials(user) || "N";
-            DOM.avatarLetter.classList.remove("hidden");
-        }
-
         if (DOM.telegramAvatar) {
-            DOM.telegramAvatar.onerror = () => {
-                DOM.telegramAvatar.removeAttribute("src");
-                DOM.telegramAvatar.classList.add("hidden");
-                DOM.telegramAvatar.classList.remove("visible");
-                DOM.avatarLetter?.classList.remove("hidden");
-            };
 
             if (user.photo_url) {
+
                 DOM.telegramAvatar.src = user.photo_url;
                 DOM.telegramAvatar.classList.remove("hidden");
                 DOM.telegramAvatar.classList.add("visible");
-                DOM.avatarLetter?.classList.add("hidden");
+
+                DOM.telegramAvatar.onerror = () => {
+                    DOM.telegramAvatar.classList.add("hidden");
+                    DOM.telegramAvatar.classList.remove("visible");
+
+                    if (DOM.avatarLetter) {
+                        DOM.avatarLetter.classList.remove("hidden");
+                    }
+                };
+
             } else {
-                DOM.telegramAvatar.removeAttribute("src");
+
                 DOM.telegramAvatar.classList.add("hidden");
                 DOM.telegramAvatar.classList.remove("visible");
+            }
+        }
+
+        if (DOM.avatarLetter) {
+
+            DOM.avatarLetter.textContent =
+                getInitials(user);
+
+            if (!user.photo_url) {
+                DOM.avatarLetter.classList.remove("hidden");
+            } else {
+                DOM.avatarLetter.classList.add("hidden");
             }
         }
     }
@@ -947,16 +948,8 @@
         );
 
         await Promise.all([
-            withTimeout(
-                loadListings(),
-                8000,
-                []
-            ),
-            withTimeout(
-                loadWallet(),
-                8000,
-                null
-            )
+            loadListings(),
+            loadWallet()
         ]);
 
         if (!DOM.pageContainer) {
@@ -1676,24 +1669,6 @@
         closeModal();
 
         await renderBuy();
-    }
-
-
-    /* =====================================================
-       REQUEST TIMEOUT HELPER
-    ===================================================== */
-
-    function withTimeout(promise, ms, fallback) {
-        let timer;
-
-        const timeout = new Promise(resolve => {
-            timer = setTimeout(() => resolve(fallback), ms);
-        });
-
-        return Promise.race([
-            promise.finally(() => clearTimeout(timer)),
-            timeout
-        ]);
     }
 
 
@@ -3821,12 +3796,13 @@
                     </span>
 
                     <strong>
-                        JessiKaPay
+                        Money Fusion
                     </strong>
 
                     <small>
-                        Le paiement sera traité
-                        via JessiKaPay.
+                        Le paiement sera effectué
+                        sur la page sécurisée
+                        Money Fusion.
                     </small>
 
                 </div>
@@ -4031,11 +4007,11 @@
                     </span>
 
                     <strong>
-                        JessiKaPay
+                        Money Fusion
                     </strong>
 
                     <small>
-                        Vérifie tes informations avant
+                        Vérifie ton numéro avant
                         de confirmer le retrait.
                     </small>
 
@@ -6486,8 +6462,14 @@
                         <span class="section-kicker">
                             NEXMARKET
                         </span>
-                        <h2>Questions fréquentes</h2>
-                        <p>Trouvez rapidement les réponses aux questions les plus fréquentes.</p>
+
+                        <h2>
+                            Questions fréquentes
+                        </h2>
+
+                        <p>
+                            Les réponses aux questions les plus fréquentes.
+                        </p>
                     </div>
                 </div>
 
@@ -6495,92 +6477,70 @@
 
                     <details class="faq-item">
                         <summary>Qu'est-ce que NexMarket ?</summary>
-                        <div class="faq-answer">NexMarket est une marketplace permettant d'acheter et de vendre des canaux Telegram dans un espace sécurisé.</div>
+                        <div class="faq-answer">
+                            NexMarket est une marketplace permettant d'acheter et de vendre des canaux Telegram.
+                        </div>
                     </details>
 
                     <details class="faq-item">
-                        <summary>Comment acheter une chaîne ?</summary>
-                        <div class="faq-answer">Choisis une annonce, consulte les informations du canal puis lance la transaction depuis sa fiche.</div>
+                        <summary>Comment acheter un canal ?</summary>
+                        <div class="faq-answer">
+                            Choisis une annonce, consulte ses informations puis lance la transaction depuis sa fiche.
+                        </div>
                     </details>
 
                     <details class="faq-item">
-                        <summary>Comment vendre ma chaîne ?</summary>
-                        <div class="faq-answer">Va dans « Vendre », renseigne les informations demandées puis soumets ton annonce. Elle doit être vérifiée avant sa publication.</div>
+                        <summary>Comment vendre mon canal ?</summary>
+                        <div class="faq-answer">
+                            Va dans « Vendre », renseigne les informations de ton canal puis soumets ton annonce pour vérification.
+                        </div>
                     </details>
 
                     <details class="faq-item">
-                        <summary>Pourquoi le bot NexMarket doit-il être administrateur ?</summary>
-                        <div class="faq-answer">Cette autorisation permet de vérifier la chaîne et de sécuriser les étapes nécessaires à la transaction.</div>
-                    </details>
-
-                    <details class="faq-item">
-                        <summary>Qui peut vendre une chaîne ?</summary>
-                        <div class="faq-answer">Seul le propriétaire réel de la chaîne peut créer une annonce.</div>
-                    </details>
-
-                    <details class="faq-item">
-                        <summary>Comment fonctionne le paiement sécurisé ?</summary>
-                        <div class="faq-answer">Le paiement est bloqué pendant le processus de transaction. Les fonds sont libérés selon les étapes prévues par NexMarket et la période de protection.</div>
-                    </details>
-
-                    <details class="faq-item">
-                        <summary>Quelle est la commission NexMarket ?</summary>
-                        <div class="faq-answer">La commission NexMarket est fixée à 5 % du prix de vente.</div>
-                    </details>
-
-                    <details class="faq-item">
-                        <summary>Que se passe-t-il en cas de problème ?</summary>
-                        <div class="faq-answer">La transaction peut être examinée par l'administration NexMarket. Tu peux également contacter le support.</div>
-                    </details>
-
-                    <details class="faq-item">
-                        <summary>Mes informations personnelles sont-elles publiques ?</summary>
-                        <div class="faq-answer">Les informations privées du vendeur ne sont pas destinées à être affichées publiquement dans les annonces.</div>
-                    </details>
-
-                    <details class="faq-item">
-                        <summary>Quel service de paiement utilise NexMarket ?</summary>
-                        <div class="faq-answer">NexMarket utilise JessiKaPay pour les opérations de paiement prévues par la plateforme.</div>
-                    </details>
-
-                    <details class="faq-item">
-                        <summary>Comment fonctionne mon portefeuille ?</summary>
-                        <div class="faq-answer">Le portefeuille affiche ton solde et les opérations disponibles sur ton compte NexMarket.</div>
+                        <summary>Le paiement est-il sécurisé ?</summary>
+                        <div class="faq-answer">
+                            NexMarket utilise un système de transaction avec blocage des fonds pendant le processus de transfert du canal.
+                        </div>
                     </details>
 
                     <details class="faq-item">
                         <summary>Quand le vendeur reçoit-il son argent ?</summary>
-                        <div class="faq-answer">Le paiement vendeur intervient après les étapes prévues par la transaction et la période de protection.</div>
+                        <div class="faq-answer">
+                            Le paiement intervient après les étapes prévues par la transaction et la période de protection.
+                        </div>
+                    </details>
+
+                    <details class="faq-item">
+                        <summary>Quelle est la commission NexMarket ?</summary>
+                        <div class="faq-answer">
+                            La commission NexMarket est de 5 % du prix de vente.
+                        </div>
+                    </details>
+
+                    <details class="faq-item">
+                        <summary>Pourquoi le bot NexMarket doit-il être administrateur ?</summary>
+                        <div class="faq-answer">
+                            Cette autorisation permet à NexMarket de vérifier le canal et de sécuriser les étapes nécessaires à la transaction.
+                        </div>
+                    </details>
+
+                    <details class="faq-item">
+                        <summary>Qui peut vendre un canal ?</summary>
+                        <div class="faq-answer">
+                            Le vendeur doit être le propriétaire réel du canal et fournir les informations nécessaires à la vérification.
+                        </div>
+                    </details>
+
+                    <details class="faq-item">
+                        <summary>Que faire en cas de problème ?</summary>
+                        <div class="faq-answer">
+                            Utilise le support NexMarket afin qu'un administrateur puisse examiner la situation.
+                        </div>
                     </details>
 
                 </div>
-
-                <div class="faq-support-box">
-                    <p>Tu ne trouves pas ta réponse ?</p>
-                    <button type="button" class="primary-action full-width faq-support-button">
-                        ${ICONS.message}
-                        Contacter le support
-                    </button>
-                </div>
-
             </div>
         `);
-
-        // Un seul panneau FAQ ouvert à la fois.
-        document
-            .querySelectorAll('.faq-item')
-            .forEach(item => {
-                item.addEventListener('toggle', () => {
-                    if (!item.open) return;
-                    document.querySelectorAll('.faq-item').forEach(other => {
-                        if (other !== item) other.removeAttribute('open');
-                    });
-                });
-            });
-
-        document
-            .querySelector('.faq-support-button')
-            ?.addEventListener('click', openSupport);
     }
 
 
