@@ -748,53 +748,52 @@
 
     function updateTelegramProfile() {
 
-        const user =
-            state.user ||
-            getTelegramUser();
+        const telegramUser = getTelegramUser() || {};
+        const backendUser = state.user || {};
 
-        if (!user) {
+        // Telegram reste la source prioritaire pour la photo.
+        // Le backend peut ne pas renvoyer photo_url.
+        const user = {
+            ...backendUser,
+            ...telegramUser,
+            photo_url:
+                telegramUser.photo_url ||
+                backendUser.photo_url ||
+                ""
+        };
+
+        if (!user.first_name && !user.photo_url) {
             return;
         }
 
         if (DOM.headerGreeting) {
-
             DOM.headerGreeting.textContent =
                 `Bonjour ${user.first_name || "à vous"}`;
         }
 
+        if (DOM.avatarLetter) {
+            DOM.avatarLetter.textContent =
+                getInitials(user) || "N";
+            DOM.avatarLetter.classList.remove("hidden");
+        }
+
         if (DOM.telegramAvatar) {
+            DOM.telegramAvatar.onerror = () => {
+                DOM.telegramAvatar.removeAttribute("src");
+                DOM.telegramAvatar.classList.add("hidden");
+                DOM.telegramAvatar.classList.remove("visible");
+                DOM.avatarLetter?.classList.remove("hidden");
+            };
 
             if (user.photo_url) {
-
                 DOM.telegramAvatar.src = user.photo_url;
                 DOM.telegramAvatar.classList.remove("hidden");
                 DOM.telegramAvatar.classList.add("visible");
-
-                DOM.telegramAvatar.onerror = () => {
-                    DOM.telegramAvatar.classList.add("hidden");
-                    DOM.telegramAvatar.classList.remove("visible");
-
-                    if (DOM.avatarLetter) {
-                        DOM.avatarLetter.classList.remove("hidden");
-                    }
-                };
-
+                DOM.avatarLetter?.classList.add("hidden");
             } else {
-
+                DOM.telegramAvatar.removeAttribute("src");
                 DOM.telegramAvatar.classList.add("hidden");
                 DOM.telegramAvatar.classList.remove("visible");
-            }
-        }
-
-        if (DOM.avatarLetter) {
-
-            DOM.avatarLetter.textContent =
-                getInitials(user);
-
-            if (!user.photo_url) {
-                DOM.avatarLetter.classList.remove("hidden");
-            } else {
-                DOM.avatarLetter.classList.add("hidden");
             }
         }
     }
@@ -948,8 +947,16 @@
         );
 
         await Promise.all([
-            loadListings(),
-            loadWallet()
+            withTimeout(
+                loadListings(),
+                8000,
+                []
+            ),
+            withTimeout(
+                loadWallet(),
+                8000,
+                null
+            )
         ]);
 
         if (!DOM.pageContainer) {
@@ -1534,13 +1541,2273 @@
 
 
                 <label>
-                    N° JessiKaPay (JP)
+                    Pays
 
                     <input
-                        id="withdrawJpNumber"
+                        id="filterCountry"
                         type="text"
-                        placeholder="Ex : JPXXXXXXXX"
+                        placeholder="Ex : Congo"
+                        value="${
+                            state.selectedCountry === "all"
+                                ? ""
+                                : escapeHTML(
+                                    state.selectedCountry
+                                )
+                        }"
+                    >
+                </label>
+
+
+                <label>
+                    Langue
+
+                    <input
+                        id="filterLanguage"
+                        type="text"
+                        placeholder="Ex : Français"
+                        value="${
+                            state.selectedLanguage === "all"
+                                ? ""
+                                : escapeHTML(
+                                    state.selectedLanguage
+                                )
+                        }"
+                    >
+                </label>
+
+
+                <div class="modal-actions">
+
+                    <button
+                        type="button"
+                        class="secondary-action"
+                        data-action="reset-filters"
+                    >
+                        Réinitialiser
+                    </button>
+
+                    <button
+                        type="button"
+                        class="primary-action"
+                        data-action="apply-filters"
+                    >
+                        Appliquer
+                    </button>
+
+                </div>
+
+            </div>
+        `);
+
+        const category =
+            document.getElementById(
+                "filterCategory"
+            );
+
+        if (category) {
+
+            category.value =
+                state.selectedCategory;
+        }
+
+        document
+            .querySelector(
+                '[data-action="apply-filters"]'
+            )
+            ?.addEventListener(
+                "click",
+                applyFilters
+            );
+
+        document
+            .querySelector(
+                '[data-action="reset-filters"]'
+            )
+            ?.addEventListener(
+                "click",
+                resetFilters
+            );
+    }
+
+
+    async function applyFilters() {
+
+        const category =
+            document.getElementById(
+                "filterCategory"
+            );
+
+        const country =
+            document.getElementById(
+                "filterCountry"
+            );
+
+        const language =
+            document.getElementById(
+                "filterLanguage"
+            );
+
+        state.selectedCategory =
+            category?.value ||
+            "all";
+
+        state.selectedCountry =
+            country?.value.trim() ||
+            "all";
+
+        state.selectedLanguage =
+            language?.value.trim() ||
+            "all";
+
+        closeModal();
+
+        await renderBuy();
+    }
+
+
+    async function resetFilters() {
+
+        state.selectedCategory = "all";
+        state.selectedCountry = "all";
+        state.selectedLanguage = "all";
+        state.selectedSubscribers = "all";
+        state.selectedPrice = "all";
+
+        closeModal();
+
+        await renderBuy();
+    }
+
+
+    /* =====================================================
+       REQUEST TIMEOUT HELPER
+    ===================================================== */
+
+    function withTimeout(promise, ms, fallback) {
+        let timer;
+
+        const timeout = new Promise(resolve => {
+            timer = setTimeout(() => resolve(fallback), ms);
+        });
+
+        return Promise.race([
+            promise.finally(() => clearTimeout(timer)),
+            timeout
+        ]);
+    }
+
+
+    /* =====================================================
+       LOAD LISTINGS
+    ===================================================== */
+
+    async function loadListings() {
+
+        try {
+
+            const params =
+                new URLSearchParams();
+
+            if (state.searchQuery) {
+
+                params.set(
+                    "search",
+                    state.searchQuery
+                );
+            }
+
+            if (
+                state.selectedCategory !==
+                "all"
+            ) {
+
+                params.set(
+                    "category",
+                    state.selectedCategory
+                );
+            }
+
+            if (
+                state.selectedCountry !==
+                "all"
+            ) {
+
+                params.set(
+                    "country",
+                    state.selectedCountry
+                );
+            }
+
+            if (
+                state.selectedLanguage !==
+                "all"
+            ) {
+
+                params.set(
+                    "language",
+                    state.selectedLanguage
+                );
+            }
+
+            const query =
+                params.toString();
+
+            const endpoint =
+                query
+                    ? `/listings?${query}`
+                    : "/listings";
+
+            const data =
+                await apiRequest(
+                    endpoint
+                );
+
+            const rawListings =
+                Array.isArray(data)
+                    ? data
+                    : (
+                        data.items ||
+                        data.listings ||
+                        data.results ||
+                        []
+                    );
+
+            state.listings =
+                rawListings.map(
+                    normalizeListing
+                );
+
+            return state.listings;
+
+        } catch (error) {
+
+            console.error(
+                "Erreur chargement annonces:",
+                error
+            );
+
+            state.listings = [];
+
+            showToast(
+                "Erreur",
+                error.message ||
+                "Impossible de charger les annonces."
+            );
+
+            return [];
+        }
+    }
+
+
+    /* =====================================================
+       NORMALISATION LISTING
+    ===================================================== */
+
+    function normalizeListing(
+        listing
+    ) {
+
+        if (!listing) {
+            return {};
+        }
+
+        const channel =
+            listing.channel ||
+            {};
+
+        return {
+            ...listing,
+
+            id:
+                listing.id ??
+                listing.listing_id,
+
+            channel_id:
+                listing.channel_id ??
+                channel.id,
+
+            title:
+                listing.title ||
+                listing.name ||
+                channel.title ||
+                channel.name ||
+                "Canal Telegram",
+
+            name:
+                listing.name ||
+                listing.title ||
+                channel.name ||
+                channel.title ||
+                "Canal Telegram",
+
+            username:
+                listing.username ||
+                channel.username ||
+                "",
+
+            description:
+                listing.description ||
+                channel.description ||
+                "",
+
+            photo_url:
+                listing.photo_url ||
+                channel.photo_url ||
+                "",
+
+            category:
+                listing.category ||
+                channel.category ||
+                "Other",
+
+            country:
+                listing.country ||
+                channel.country ||
+                "",
+
+            language:
+                listing.language ||
+                channel.language ||
+                "",
+
+            subscribers_count:
+                listing.subscribers_count ??
+                channel.subscribers_count ??
+                0,
+
+            telegram_verified:
+                listing.telegram_verified ??
+                channel.telegram_verified ??
+                false,
+
+            bot_is_admin:
+                listing.bot_is_admin ??
+                channel.bot_is_admin ??
+                false,
+
+            seller_is_admin:
+                listing.seller_is_admin ??
+                channel.seller_is_admin ??
+                false,
+
+            price:
+                listing.price ??
+                listing.locked_price ??
+                0,
+
+            currency:
+                listing.currency ||
+                "XAF"
+        };
+    }
+
+
+    /* =====================================================
+       LOAD USER
+    ===================================================== */
+
+    async function loadCurrentUser() {
+
+        try {
+
+            const data =
+                await apiRequest(
+                    "/users/me"
+                );
+
+            state.user =
+                data?.user ||
+                data;
+
+            updateTelegramProfile();
+
+            return state.user;
+
+        } catch (error) {
+
+            console.warn(
+                "Utilisateur:",
+                error.message
+            );
+
+            const telegramUser =
+                getTelegramUser();
+
+            if (telegramUser) {
+
+                state.user = {
+                    telegram_id:
+                        telegramUser.id,
+
+                    username:
+                        telegramUser.username,
+
+                    first_name:
+                        telegramUser.first_name,
+
+                    last_name:
+                        telegramUser.last_name,
+
+                    photo_url:
+                        telegramUser.photo_url,
+
+                    currency: "XAF",
+
+                    language: "fr"
+                };
+
+                updateTelegramProfile();
+            }
+
+            return state.user;
+        }
+    }
+
+
+    /* =====================================================
+       LOAD WALLET
+    ===================================================== */
+
+    async function loadWallet() {
+
+        if (!state.user) {
+            return null;
+        }
+
+        try {
+
+            const data =
+                await apiRequest(
+                    "/wallet"
+                );
+
+            state.wallet =
+                data?.wallet ||
+                data;
+
+            return state.wallet;
+
+        } catch (error) {
+
+            console.warn(
+                "Portefeuille:",
+                error.message
+            );
+
+            state.wallet = null;
+
+            return null;
+        }
+    }
+
+
+    /* =====================================================
+       LOAD TRANSACTIONS
+    ===================================================== */
+
+    async function loadTransactions() {
+
+        if (!state.user) {
+            state.transactions = [];
+            return [];
+        }
+
+        try {
+
+            const data =
+                await apiRequest(
+                    "/transactions/mine"
+                );
+
+            state.transactions =
+                Array.isArray(data)
+                    ? data
+                    : (
+                        data.items ||
+                        data.transactions ||
+                        []
+                    );
+
+            return state.transactions;
+
+        } catch (error) {
+
+            console.warn(
+                "Transactions:",
+                error.message
+            );
+
+            state.transactions = [];
+
+            return [];
+        }
+    }
+
+
+    /* =====================================================
+       LOAD FAVORITES
+    ===================================================== */
+
+    async function loadFavorites() {
+
+        if (!state.user) {
+            state.favorites = [];
+            return [];
+        }
+
+        try {
+
+            const data =
+                await apiRequest(
+                    "/favorites"
+                );
+
+            state.favorites =
+                Array.isArray(data)
+                    ? data
+                    : (
+                        data.items ||
+                        data.favorites ||
+                        []
+                    );
+
+            return state.favorites;
+
+        } catch (error) {
+
+            console.warn(
+                "Favoris:",
+                error.message
+            );
+
+            state.favorites = [];
+
+            return [];
+        }
+    }
+
+
+    /* =====================================================
+       LOAD MY LISTINGS
+    ===================================================== */
+
+    async function loadMyListings() {
+
+        if (!state.user) {
+            state.myListings = [];
+            return [];
+        }
+
+        try {
+
+            const data =
+                await apiRequest(
+                    "/listings/mine/all"
+                );
+
+            const raw =
+                Array.isArray(data)
+                    ? data
+                    : (
+                        data.items ||
+                        data.listings ||
+                        []
+                    );
+
+            state.myListings =
+                raw.map(
+                    normalizeListing
+                );
+
+            return state.myListings;
+
+        } catch (error) {
+
+            console.warn(
+                "Mes annonces:",
+                error.message
+            );
+
+            state.myListings = [];
+
+            return [];
+        }
+    }
+
+
+    /* =====================================================
+       PAGE LOADING
+    ===================================================== */
+
+    function showLoading(
+        message = "Chargement..."
+    ) {
+
+        if (!DOM.pageContainer) {
+            return;
+        }
+
+        DOM.pageContainer.innerHTML = `
+            <div class="loading-state">
+                <div class="loading-spinner"></div>
+
+                <p>
+                    ${escapeHTML(message)}
+                </p>
+            </div>
+        `;
+    }
+
+
+    function showEmpty(
+        title,
+        message,
+        icon = ICONS.channel
+    ) {
+
+        return `
+            <div class="empty-state">
+
+                <div class="empty-state-icon">
+                    ${icon}
+                </div>
+
+                <h3>
+                    ${escapeHTML(title)}
+                </h3>
+
+                <p>
+                    ${escapeHTML(message)}
+                </p>
+
+            </div>
+        `;
+    }
+
+
+    /* =====================================================
+       PAGE HOME
+    ===================================================== */
+
+    async function renderHome() {
+
+        state.currentPage = "home";
+
+        showLoading(
+            "Chargement des annonces..."
+        );
+
+        await Promise.all([
+            loadListings(),
+            loadWallet()
+        ]);
+
+        if (!DOM.pageContainer) {
+            return;
+        }
+
+        DOM.pageContainer.innerHTML = `
+            <section class="home-page">
+
+                <div class="home-hero">
+
+                    <div class="hero-copy">
+
+                        <span class="hero-eyebrow">
+                            NEXMARKET
+                        </span>
+
+                        <h1>
+                            Trouve ton prochain
+                            <span>
+                                canal Telegram.
+                            </span>
+                        </h1>
+
+                        <p>
+                            Achète et vends des canaux
+                            Telegram dans un espace pensé
+                            pour des transactions sécurisées.
+                        </p>
+
+                    </div>
+
+
+                    <div class="hero-actions">
+
+                        <button
+                            class="primary-action"
+                            type="button"
+                            data-action="buy"
+                        >
+                            ${ICONS.cart}
+
+                            <span>
+                                Acheter un canal
+                            </span>
+                        </button>
+
+
+                        <button
+                            class="secondary-action"
+                            type="button"
+                            data-action="sell"
+                        >
+                            ${ICONS.sell}
+
+                            <span>
+                                Vendre mon canal
+                            </span>
+                        </button>
+
+                    </div>
+
+                </div>
+
+
+                <div class="section-header">
+
+                    <div>
+
+                        <span class="section-kicker">
+                            MARKETPLACE
+                        </span>
+
+                        <h2>
+                            Canaux disponibles
+                        </h2>
+
+                    </div>
+
+
+                    <button
+                        class="text-button"
+                        type="button"
+                        data-action="buy"
+                    >
+                        Voir tout
+                        ${ICONS.arrow}
+                    </button>
+
+                </div>
+
+
+                <div
+                    class="listing-feed"
+                    id="homeListingFeed"
+                >
+                    ${renderListingFeed(
+                        state.listings.slice(
+                            0,
+                            8
+                        )
+                    )}
+                </div>
+
+            </section>
+        `;
+
+        bindPageActions();
+    }
+
+
+    /* =====================================================
+       LISTING FEED
+    ===================================================== */
+
+    function renderListingFeed(
+        listings
+    ) {
+
+        if (
+            !Array.isArray(listings) ||
+            listings.length === 0
+        ) {
+
+            return showEmpty(
+                "Aucun canal disponible",
+                "Les nouvelles annonces apparaîtront ici.",
+                ICONS.channel
+            );
+        }
+
+        return listings
+            .map(renderListing)
+            .join("");
+    }
+
+
+    /* =====================================================
+       LISTING
+    ===================================================== */
+
+    function renderListing(
+        listing
+    ) {
+
+        const id =
+            listing.id;
+
+        const title =
+            listing.title ||
+            listing.name ||
+            "Canal Telegram";
+
+        const username =
+            listing.username
+                ? `@${String(
+                    listing.username
+                ).replace(
+                    /^@/,
+                    ""
+                )}`
+                : "Canal Telegram";
+
+        const description =
+            listing.description ||
+            "Canal Telegram disponible à la vente.";
+
+        const category =
+            listing.category ||
+            "Other";
+
+        const country =
+            listing.country ||
+            "—";
+
+        const language =
+            listing.language ||
+            "—";
+
+        const subscribers =
+            listing.subscribers_count;
+
+        const price =
+            listing.price ??
+            listing.locked_price ??
+            0;
+
+        const currency =
+            listing.currency ||
+            state.user?.currency ||
+            "XAF";
+
+        const photo =
+            listing.photo_url ||
+            listing.channel?.photo_url ||
+            "";
+
+        const isFavorite =
+            state.favorites.some(
+                favorite =>
+                    Number(
+                        favorite.listing_id
+                    ) === Number(id)
+            );
+
+        return `
+            <article
+                class="channel-listing"
+                data-listing-id="${escapeHTML(id)}"
+            >
+
+                <div class="listing-main">
+
+                    <div class="listing-image">
+
+                        ${
+                            photo
+                                ? `
+                                    <img
+                                        src="${escapeHTML(
+                                            photo
+                                        )}"
+                                        alt="${escapeHTML(
+                                            title
+                                        )}"
+                                        loading="lazy"
+                                    >
+                                `
+                                : `
+                                    <div class="listing-image-placeholder">
+                                        ${ICONS.channel}
+                                    </div>
+                                `
+                        }
+
+                    </div>
+
+
+                    <div class="listing-content">
+
+                        <div class="listing-top">
+
+                            <div>
+
+                                <span class="listing-category">
+                                    ${escapeHTML(
+                                        category
+                                    )}
+                                </span>
+
+                                <h3>
+                                    ${escapeHTML(
+                                        title
+                                    )}
+                                </h3>
+
+                                <span class="listing-username">
+                                    ${escapeHTML(
+                                        username
+                                    )}
+                                </span>
+
+                            </div>
+
+
+                            <button
+                                class="favorite-button ${
+                                    isFavorite
+                                        ? "active"
+                                        : ""
+                                }"
+                                type="button"
+                                data-action="favorite"
+                                data-listing-id="${escapeHTML(
+                                    id
+                                )}"
+                                aria-label="Favoris"
+                            >
+                                ${ICONS.heart}
+                            </button>
+
+                        </div>
+
+
+                        <p class="listing-description">
+                            ${escapeHTML(
+                                description
+                            )}
+                        </p>
+
+
+                        <div class="listing-meta">
+
+                            <span>
+                                ${ICONS.user}
+
+                                ${
+                                    subscribers !== null &&
+                                    subscribers !== undefined
+                                        ? formatNumber(
+                                            subscribers
+                                        )
+                                        : "—"
+                                }
+
+                                abonnés
+                            </span>
+
+
+                            <span>
+                                ${escapeHTML(
+                                    country
+                                )}
+                            </span>
+
+
+                            <span>
+                                ${escapeHTML(
+                                    language
+                                )}
+                            </span>
+
+                        </div>
+
+
+                        <div class="listing-bottom">
+
+                            <strong class="listing-price">
+                                ${formatMoney(
+                                    price,
+                                    currency
+                                )}
+                            </strong>
+
+
+                            <button
+                                class="listing-view-button"
+                                type="button"
+                                data-action="view-listing"
+                                data-listing-id="${escapeHTML(
+                                    id
+                                )}"
+                            >
+                                Voir
+                                ${ICONS.arrow}
+                            </button>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </article>
+        `;
+    }
+
+
+    /* =====================================================
+       PAGE BUY
+    ===================================================== */
+
+    async function renderBuy() {
+
+        state.currentPage = "buy";
+
+        showLoading(
+            "Recherche des canaux..."
+        );
+
+        await Promise.all([
+            loadListings(),
+            loadFavorites()
+        ]);
+
+        if (!DOM.pageContainer) {
+            return;
+        }
+
+        DOM.pageContainer.innerHTML = `
+            <section class="buy-page">
+
+                <div class="page-heading">
+
+                    <span class="section-kicker">
+                        MARKETPLACE
+                    </span>
+
+                    <h1>
+                        Acheter
+                    </h1>
+
+                    <p>
+                        Trouve un canal Telegram
+                        correspondant à tes critères.
+                    </p>
+
+                </div>
+
+
+                <div class="search-box">
+
+                    <span class="search-icon">
+                        ${ICONS.search}
+                    </span>
+
+                    <input
+                        id="marketSearchInput"
+                        type="search"
+                        placeholder="Nom, @username, catégorie..."
+                        value="${escapeHTML(
+                            state.searchQuery
+                        )}"
                         autocomplete="off"
+                    >
+
+                </div>
+
+
+                <div class="filter-row">
+
+                    <button
+                        class="filter-button"
+                        type="button"
+                        data-action="filters"
+                    >
+                        ${ICONS.filter}
+                        Filtres
+                    </button>
+
+
+                    <button
+                        class="filter-chip ${
+                            state.selectedCategory !==
+                            "all"
+                                ? "active"
+                                : ""
+                        }"
+                        type="button"
+                        data-filter="category"
+                    >
+                        ${
+                            state.selectedCategory ===
+                            "all"
+                                ? "Catégorie"
+                                : escapeHTML(
+                                    state.selectedCategory
+                                )
+                        }
+                    </button>
+
+
+                    <button
+                        class="filter-chip ${
+                            state.selectedCountry !==
+                            "all"
+                                ? "active"
+                                : ""
+                        }"
+                        type="button"
+                        data-filter="country"
+                    >
+                        ${
+                            state.selectedCountry ===
+                            "all"
+                                ? "Pays"
+                                : escapeHTML(
+                                    state.selectedCountry
+                                )
+                        }
+                    </button>
+
+                </div>
+
+
+                <div class="listing-count">
+
+                    ${state.listings.length}
+
+                    annonce${
+                        state.listings.length >
+                        1
+                            ? "s"
+                            : ""
+                    }
+
+                </div>
+
+
+                <div
+                    class="listing-feed"
+                    id="buyListingFeed"
+                >
+                    ${renderListingFeed(
+                        state.listings
+                    )}
+                </div>
+
+            </section>
+        `;
+
+        bindBuyActions();
+    }
+
+    /* =====================================================
+       SEARCH
+    ===================================================== */
+
+    function setupSearchInput() {
+
+        const input =
+            document.getElementById(
+                "marketSearchInput"
+            );
+
+        if (!input) {
+            return;
+        }
+
+        let timer = null;
+
+        input.addEventListener(
+            "input",
+            event => {
+
+                clearTimeout(timer);
+
+                timer =
+                    setTimeout(
+                        async () => {
+
+                            state.searchQuery =
+                                event.target.value;
+
+                            await renderBuy();
+
+                        },
+                        350
+                    );
+            }
+        );
+    }
+
+
+    /* =====================================================
+       FILTERS
+    ===================================================== */
+
+    function openFilters() {
+
+        openModal(`
+            <div class="modal-header-content">
+
+                <div>
+
+                    <span class="section-kicker">
+                        FILTRES
+                    </span>
+
+                    <h2>
+                        Affiner la recherche
+                    </h2>
+
+                </div>
+
+            </div>
+
+
+            <div class="filter-form">
+
+                <label>
+                    Catégorie
+
+                    <select
+                        id="filterCategory"
+                    >
+
+                        <option value="all">
+                            Toutes
+                        </option>
+
+                        <option value="News">
+                            News
+                        </option>
+
+                        <option value="Sport">
+                            Sport
+                        </option>
+
+                        <option value="Entertainment">
+                            Entertainment
+                        </option>
+
+                        <option value="Games">
+                            Games
+                        </option>
+
+                        <option value="Education">
+                            Education
+                        </option>
+
+                        <option value="Business">
+                            Business
+                        </option>
+
+                        <option value="Tech">
+                            Tech
+                        </option>
+
+                        <option value="Commerce">
+                            Commerce
+                        </option>
+
+                        <option value="Music">
+                            Music
+                        </option>
+
+                        <option value="Creation">
+                            Creation
+                        </option>
+
+                        <option value="Community">
+                            Community
+                        </option>
+
+                        <option value="Other">
+                            Other
+                        </option>
+
+                    </select>
+
+                </label>
+
+
+                <label>
+                    Pays
+
+                    <input
+                        id="filterCountry"
+                        type="text"
+                        placeholder="Ex : Congo"
+                        value="${
+                            state.selectedCountry ===
+                            "all"
+                                ? ""
+                                : escapeHTML(
+                                    state.selectedCountry
+                                )
+                        }"
+                    >
+
+                </label>
+
+
+                <label>
+                    Langue
+
+                    <input
+                        id="filterLanguage"
+                        type="text"
+                        placeholder="Ex : Français"
+                        value="${
+                            state.selectedLanguage ===
+                            "all"
+                                ? ""
+                                : escapeHTML(
+                                    state.selectedLanguage
+                                )
+                        }"
+                    >
+
+                </label>
+
+
+                <div class="modal-actions">
+
+                    <button
+                        type="button"
+                        class="secondary-action"
+                        data-action="reset-filters"
+                    >
+                        Réinitialiser
+                    </button>
+
+
+                    <button
+                        type="button"
+                        class="primary-action"
+                        data-action="apply-filters"
+                    >
+                        Appliquer
+                    </button>
+
+                </div>
+
+            </div>
+        `);
+
+
+        const category =
+            document.getElementById(
+                "filterCategory"
+            );
+
+
+        if (category) {
+
+            category.value =
+                state.selectedCategory;
+        }
+
+
+        document
+            .querySelector(
+                '[data-action="apply-filters"]'
+            )
+            ?.addEventListener(
+                "click",
+                applyFilters
+            );
+
+
+        document
+            .querySelector(
+                '[data-action="reset-filters"]'
+            )
+            ?.addEventListener(
+                "click",
+                resetFilters
+            );
+    }
+
+
+    async function applyFilters() {
+
+        const category =
+            document.getElementById(
+                "filterCategory"
+            );
+
+        const country =
+            document.getElementById(
+                "filterCountry"
+            );
+
+        const language =
+            document.getElementById(
+                "filterLanguage"
+            );
+
+
+        state.selectedCategory =
+            category?.value ||
+            "all";
+
+
+        state.selectedCountry =
+            country?.value.trim() ||
+            "all";
+
+
+        state.selectedLanguage =
+            language?.value.trim() ||
+            "all";
+
+
+        closeModal();
+
+        await renderBuy();
+    }
+
+
+    async function resetFilters() {
+
+        state.selectedCategory =
+            "all";
+
+        state.selectedCountry =
+            "all";
+
+        state.selectedLanguage =
+            "all";
+
+        state.selectedSubscribers =
+            "all";
+
+        state.selectedPrice =
+            "all";
+
+
+        closeModal();
+
+        await renderBuy();
+    }
+
+
+    /* =====================================================
+       LISTING DETAILS
+    ===================================================== */
+
+    async function openListing(
+        listingId
+    ) {
+
+        if (!listingId) {
+            return;
+        }
+
+        try {
+
+            const data =
+                await apiRequest(
+                    `/listings/${listingId}`
+                );
+
+            const listing =
+                normalizeListing(
+                    data?.listing ||
+                    data
+                );
+
+            await loadFavorites();
+
+            const isFavorite =
+                state.favorites.some(
+                    favorite =>
+                        Number(
+                            favorite.listing_id
+                        ) === Number(
+                            listing.id
+                        )
+                );
+
+
+            const title =
+                listing.title ||
+                "Canal Telegram";
+
+
+            const username =
+                listing.username
+                    ? `@${String(
+                        listing.username
+                    ).replace(
+                        /^@/,
+                        ""
+                    )}`
+                    : "Canal Telegram";
+
+
+            const photo =
+                listing.photo_url ||
+                "";
+
+
+            const price =
+                listing.price ??
+                listing.locked_price ??
+                0;
+
+
+            const currency =
+                listing.currency ||
+                state.user?.currency ||
+                "XAF";
+
+
+            const sellerName =
+                listing.seller?.first_name ||
+                listing.seller_name ||
+                "Vendeur";
+
+
+            openModal(`
+                <div class="listing-detail">
+
+                    <div class="detail-image">
+
+                        ${
+                            photo
+                                ? `
+                                    <img
+                                        src="${escapeHTML(
+                                            photo
+                                        )}"
+                                        alt="${escapeHTML(
+                                            title
+                                        )}"
+                                    >
+                                `
+                                : `
+                                    <div class="detail-image-placeholder">
+                                        ${ICONS.channel}
+                                    </div>
+                                `
+                        }
+
+                    </div>
+
+
+                    <div class="detail-header">
+
+                        <div>
+
+                            <span class="listing-category">
+                                ${escapeHTML(
+                                    listing.category ||
+                                    "Other"
+                                )}
+                            </span>
+
+                            <h2>
+                                ${escapeHTML(
+                                    title
+                                )}
+                            </h2>
+
+                            <p>
+                                ${escapeHTML(
+                                    username
+                                )}
+                            </p>
+
+                        </div>
+
+
+                        <button
+                            class="favorite-button ${
+                                isFavorite
+                                    ? "active"
+                                    : ""
+                            }"
+                            type="button"
+                            data-action="detail-favorite"
+                            data-listing-id="${escapeHTML(
+                                listing.id
+                            )}"
+                        >
+                            ${ICONS.heart}
+                        </button>
+
+                    </div>
+
+
+                    <div class="detail-price">
+                        ${formatMoney(
+                            price,
+                            currency
+                        )}
+                    </div>
+
+
+                    <div class="detail-stats">
+
+                        <div>
+
+                            <strong>
+                                ${
+                                    listing.subscribers_count !==
+                                    undefined
+                                        ? formatNumber(
+                                            listing.subscribers_count
+                                        )
+                                        : "—"
+                                }
+                            </strong>
+
+                            <span>
+                                Abonnés
+                            </span>
+
+                        </div>
+
+
+                        <div>
+
+                            <strong>
+                                ${escapeHTML(
+                                    listing.country ||
+                                    "—"
+                                )}
+                            </strong>
+
+                            <span>
+                                Pays
+                            </span>
+
+                        </div>
+
+
+                        <div>
+
+                            <strong>
+                                ${escapeHTML(
+                                    listing.language ||
+                                    "—"
+                                )}
+                            </strong>
+
+                            <span>
+                                Langue
+                            </span>
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="detail-description">
+
+                        <h3>
+                            Description
+                        </h3>
+
+                        <p>
+                            ${escapeHTML(
+                                listing.description ||
+                                "Aucune description fournie."
+                            )}
+                        </p>
+
+                    </div>
+
+
+                    <div class="verification-list">
+
+                        <div>
+                            ${ICONS.channel}
+
+                            <span>
+                                Canal vérifié
+                            </span>
+
+                            <strong>
+                                ${
+                                    listing.telegram_verified
+                                        ? "Oui"
+                                        : "En attente"
+                                }
+                            </strong>
+                        </div>
+
+
+                        <div>
+                            ${ICONS.lock}
+
+                            <span>
+                                Vérification NexMarket
+                            </span>
+
+                            <strong>
+                                ${
+                                    listing.bot_is_admin
+                                        ? "Active"
+                                        : "En attente"
+                                }
+                            </strong>
+                        </div>
+
+                    </div>
+
+
+                    <div class="seller-info">
+
+                        <span>
+                            Vendeur
+                        </span>
+
+                        <strong>
+                            ${escapeHTML(
+                                sellerName
+                            )}
+                        </strong>
+
+                    </div>
+
+
+                    <button
+                        class="primary-action full-width"
+                        type="button"
+                        data-action="purchase"
+                        data-listing-id="${escapeHTML(
+                            listing.id
+                        )}"
+                    >
+                        ${ICONS.cart}
+
+                        Acheter ce canal
+                    </button>
+
+                </div>
+            `);
+
+
+            document
+                .querySelector(
+                    '[data-action="detail-favorite"]'
+                )
+                ?.addEventListener(
+                    "click",
+                    async event => {
+
+                        await toggleFavorite(
+                            event.currentTarget
+                                .dataset
+                                .listingId
+                        );
+
+                        closeModal();
+
+                        await openListing(
+                            listing.id
+                        );
+                    }
+                );
+
+
+            document
+                .querySelector(
+                    '[data-action="purchase"]'
+                )
+                ?.addEventListener(
+                    "click",
+                    () => {
+
+                        purchaseListing(
+                            listing.id
+                        );
+
+                    }
+                );
+
+        } catch (error) {
+
+            showToast(
+                "Erreur",
+                error.message ||
+                "Impossible de charger cette annonce."
+            );
+        }
+    }
+
+
+    /* =====================================================
+       FAVORITES
+    ===================================================== */
+
+    async function toggleFavorite(
+        listingId
+    ) {
+
+        if (!state.user) {
+
+            showToast(
+                "Connexion requise",
+                "Ouvre NexMarket depuis Telegram."
+            );
+
+            return;
+        }
+
+
+        const exists =
+            state.favorites.some(
+                favorite =>
+                    Number(
+                        favorite.listing_id
+                    ) === Number(
+                        listingId
+                    )
+            );
+
+
+        try {
+
+            if (exists) {
+
+                await apiRequest(
+                    `/favorites/${listingId}`,
+                    {
+                        method: "DELETE"
+                    }
+                );
+
+                state.favorites =
+                    state.favorites.filter(
+                        favorite =>
+                            Number(
+                                favorite.listing_id
+                            ) !== Number(
+                                listingId
+                            )
+                    );
+
+
+                showToast(
+                    "Favori supprimé",
+                    "L'annonce a été retirée de tes favoris."
+                );
+
+            } else {
+
+                const data =
+                    await apiRequest(
+                        `/favorites/${listingId}`,
+                        {
+                            method: "POST"
+                        }
+                    );
+
+
+                state.favorites.push(
+                    data
+                );
+
+
+                showToast(
+                    "Ajouté aux favoris",
+                    "L'annonce a été ajoutée à tes favoris."
+                );
+            }
+
+
+            if (
+                state.currentPage ===
+                "buy"
+            ) {
+
+                await renderBuy();
+            }
+
+        } catch (error) {
+
+            showToast(
+                "Erreur",
+                error.message ||
+                "Impossible de modifier les favoris."
+            );
+        }
+    }
+
+
+    /* =====================================================
+       PURCHASE
+    ===================================================== */
+
+    async function purchaseListing(
+        listingId
+    ) {
+
+        if (!state.user) {
+
+            showToast(
+                "Connexion requise",
+                "Ouvre NexMarket depuis Telegram."
+            );
+
+            return;
+        }
+
+
+        if (!listingId) {
+            return;
+        }
+
+
+        try {
+
+            const wallet =
+                await loadWallet();
+
+
+            const available =
+                Number(
+                    wallet?.available_balance ??
+                    wallet?.balance ??
+                    0
+                );
+
+
+            const listing =
+                state.listings.find(
+                    item =>
+                        Number(item.id) ===
+                        Number(listingId)
+                );
+
+
+            const price =
+                Number(
+                    listing?.price || 0
+                );
+
+
+            if (
+                price > 0 &&
+                available < price
+            ) {
+
+                openWalletDeposit(
+                    price - available
+                );
+
+                showToast(
+                    "Solde insuffisant",
+                    "Recharge ton portefeuille avant de continuer."
+                );
+
+                return;
+            }
+
+
+            const confirmed =
+                window.confirm(
+                    "Confirmer l'achat de ce canal ?"
+                );
+
+
+            if (!confirmed) {
+                return;
+            }
+
+
+            closeModal();
+
+
+            showLoading(
+                "Création de la transaction..."
+            );
+
+
+            const data =
+                await apiRequest(
+                    "/transactions",
+                    {
+                        method: "POST",
+
+                        body:
+                            JSON.stringify({
+                                listing_id:
+                                    Number(
+                                        listingId
+                                    )
+                            })
+                    }
+                );
+
+
+            const transaction =
+                data?.transaction ||
+                data;
+
+
+            showToast(
+                "Transaction créée",
+                "Les fonds sont maintenant réservés. Un administrateur va prendre en charge la transaction."
+            );
+
+
+            await loadTransactions();
+
+
+            await openTransaction(
+                transaction.id
+            );
+
+        } catch (error) {
+
+            await renderBuy();
+
+            showToast(
+                "Achat impossible",
+                error.message ||
+                "La transaction n'a pas pu être créée."
+            );
+        }
+    }
+
+
+    /* =====================================================
+       WALLET PAGE
+    ===================================================== */
+
+    async function renderWallet() {
+
+        state.currentPage =
+            "wallet";
+
+        showLoading(
+            "Chargement du portefeuille..."
+        );
+
+        await loadWallet();
+
+        if (!DOM.pageContainer) {
+            return;
+        }
+
+        const wallet =
+            state.wallet || {};
+
+
+        const available =
+            wallet.available_balance ??
+            wallet.balance ??
+            0;
+
+
+        const blocked =
+            wallet.blocked_balance ??
+            0;
+
+
+        const revenue =
+            wallet.total_revenue ??
+            0;
+
+
+        const currency =
+            wallet.currency ||
+            state.user?.currency ||
+            "XAF";
+
+
+        DOM.pageContainer.innerHTML = `
+            <section class="wallet-page">
+
+                <div class="page-heading">
+
+                    <span class="section-kicker">
+                        MON PORTEFEUILLE
+                    </span>
+
+                    <h1>
+                        Wallet
+                    </h1>
+
+                    <p>
+                        Gère ton argent et tes transactions
+                        NexMarket.
+                    </p>
+
+                </div>
+
+
+                <div class="wallet-balance-panel">
+
+                    <span>
+                        Solde disponible
+                    </span>
+
+                    <strong>
+                        ${formatMoney(
+                            available,
+                            currency
+                        )}
+                    </strong>
+
+                    <div class="wallet-id">
+
+                        NEXA ID
+
+                        <b>
+                            ${
+                                state.user?.nexa_id ||
+                                "—"
+                            }
+                        </b>
+
+                    </div>
+
+                </div>
+
+
+                <div class="wallet-actions">
+
+                    <button
+                        class="primary-action"
+                        type="button"
+                        data-action="deposit"
+                    >
+                        ${ICONS.deposit}
+
+                        Déposer
+                    </button>
+
+
+                    <button
+                        class="secondary-action"
+                        type="button"
+                        data-action="withdraw"
+                    >
+                        ${ICONS.withdraw}
+
+                        Retirer
+                    </button>
+
+                </div>
+
+
+                <div class="wallet-stats">
+
+                    <div>
+
+                        <span>
+                            Bloqué
+                        </span>
+
+                        <strong>
+                            ${formatMoney(
+                                blocked,
+                                currency
+                            )}
+                        </strong>
+
+                    </div>
+
+
+                    <div>
+
+                        <span>
+                            Revenus
+                        </span>
+
+                        <strong>
+                            ${formatMoney(
+                                revenue,
+                                currency
+                            )}
+                        </strong>
+
+                    </div>
+
+                </div>
+
+
+                <div class="wallet-info">
+
+                    ${ICONS.lock}
+
+                    <div>
+
+                        <strong>
+                            Paiements sécurisés
+                        </strong>
+
+                        <p>
+                            Les fonds utilisés pour un achat
+                            sont réservés jusqu'à la fin
+                            de la transaction.
+                        </p>
+
+                    </div>
+
+                </div>
+
+            </section>
+        `;
+
+
+        bindWalletActions();
+    }
+
+
+    /* =====================================================
+       DEPOSIT
+    ===================================================== */
+
+    function openWalletDeposit(
+        suggestedAmount = ""
+    ) {
+
+        openModal(`
+            <div class="modal-header-content">
+
+                <div>
+
+                    <span class="section-kicker">
+                        PORTEFEUILLE
+                    </span>
+
+                    <h2>
+                        Déposer de l'argent
+                    </h2>
+
+                </div>
+
+            </div>
+
+
+            <form
+                id="depositForm"
+                class="modal-form"
+            >
+
+                <label>
+                    Montant
+
+                    <input
+                        id="depositAmount"
+                        type="number"
+                        min="1"
+                        step="1"
+                        placeholder="Ex : 5000"
+                        value="${
+                            suggestedAmount ||
+                            ""
+                        }"
                         required
                     >
 
@@ -1558,9 +3825,8 @@
                     </strong>
 
                     <small>
-                        Le paiement sera effectué
-                        sur la page sécurisée
-                        JessiKaPay.
+                        Le paiement sera traité
+                        via JessiKaPay.
                     </small>
 
                 </div>
@@ -1643,8 +3909,6 @@
 
 
             const url =
-                data?.payment_link ||
-                data?.checkout_url ||
                 data?.url ||
                 data?.payment_url ||
                 data?.redirect_url;
@@ -1771,8 +4035,8 @@
                     </strong>
 
                     <small>
-                        Le retrait sera envoyé vers ton
-                        numéro JessiKaPay (JP).
+                        Vérifie tes informations avant
+                        de confirmer le retrait.
                     </small>
 
                 </div>
@@ -1815,9 +4079,15 @@
             );
 
 
-        const jpNumberInput =
+        const countryInput =
             document.getElementById(
-                "withdrawJpNumber"
+                "withdrawCountry"
+            );
+
+
+        const phoneInput =
+            document.getElementById(
+                "withdrawPhone"
             );
 
 
@@ -1827,8 +4097,14 @@
             );
 
 
-        const jpNumber =
-            jpNumberInput?.value
+        const country =
+            countryInput?.value
+                ?.trim()
+                .toUpperCase();
+
+
+        const phone =
+            phoneInput?.value
                 ?.trim();
 
 
@@ -1846,11 +4122,25 @@
         }
 
 
-        if (!jpNumber) {
+        if (
+            !country ||
+            country.length !== 2
+        ) {
 
             showToast(
-                "N° JessiKaPay requis",
-                "Entre ton numéro JessiKaPay (JP)."
+                "Pays invalide",
+                "Utilise le code pays à deux lettres."
+            );
+
+            return;
+        }
+
+
+        if (!phone) {
+
+            showToast(
+                "Numéro requis",
+                "Entre le numéro qui recevra le retrait."
             );
 
             return;
@@ -1873,7 +4163,10 @@
                                     state.user?.currency ||
                                     "XAF",
 
-                                jp_number: jpNumber
+                                country,
+
+                                phone_number:
+                                    phone
                             })
                     }
                 );
@@ -4180,6 +6473,118 @@
 
 
     /* =====================================================
+       FAQ — QUESTIONS FRÉQUENTES
+    ===================================================== */
+
+    function openFAQ() {
+
+        openModal(`
+            <div class="faq-modal">
+
+                <div class="modal-header-content">
+                    <div>
+                        <span class="section-kicker">
+                            NEXMARKET
+                        </span>
+                        <h2>Questions fréquentes</h2>
+                        <p>Trouvez rapidement les réponses aux questions les plus fréquentes.</p>
+                    </div>
+                </div>
+
+                <div class="faq-list">
+
+                    <details class="faq-item">
+                        <summary>Qu'est-ce que NexMarket ?</summary>
+                        <div class="faq-answer">NexMarket est une marketplace permettant d'acheter et de vendre des canaux Telegram dans un espace sécurisé.</div>
+                    </details>
+
+                    <details class="faq-item">
+                        <summary>Comment acheter une chaîne ?</summary>
+                        <div class="faq-answer">Choisis une annonce, consulte les informations du canal puis lance la transaction depuis sa fiche.</div>
+                    </details>
+
+                    <details class="faq-item">
+                        <summary>Comment vendre ma chaîne ?</summary>
+                        <div class="faq-answer">Va dans « Vendre », renseigne les informations demandées puis soumets ton annonce. Elle doit être vérifiée avant sa publication.</div>
+                    </details>
+
+                    <details class="faq-item">
+                        <summary>Pourquoi le bot NexMarket doit-il être administrateur ?</summary>
+                        <div class="faq-answer">Cette autorisation permet de vérifier la chaîne et de sécuriser les étapes nécessaires à la transaction.</div>
+                    </details>
+
+                    <details class="faq-item">
+                        <summary>Qui peut vendre une chaîne ?</summary>
+                        <div class="faq-answer">Seul le propriétaire réel de la chaîne peut créer une annonce.</div>
+                    </details>
+
+                    <details class="faq-item">
+                        <summary>Comment fonctionne le paiement sécurisé ?</summary>
+                        <div class="faq-answer">Le paiement est bloqué pendant le processus de transaction. Les fonds sont libérés selon les étapes prévues par NexMarket et la période de protection.</div>
+                    </details>
+
+                    <details class="faq-item">
+                        <summary>Quelle est la commission NexMarket ?</summary>
+                        <div class="faq-answer">La commission NexMarket est fixée à 5 % du prix de vente.</div>
+                    </details>
+
+                    <details class="faq-item">
+                        <summary>Que se passe-t-il en cas de problème ?</summary>
+                        <div class="faq-answer">La transaction peut être examinée par l'administration NexMarket. Tu peux également contacter le support.</div>
+                    </details>
+
+                    <details class="faq-item">
+                        <summary>Mes informations personnelles sont-elles publiques ?</summary>
+                        <div class="faq-answer">Les informations privées du vendeur ne sont pas destinées à être affichées publiquement dans les annonces.</div>
+                    </details>
+
+                    <details class="faq-item">
+                        <summary>Quel service de paiement utilise NexMarket ?</summary>
+                        <div class="faq-answer">NexMarket utilise JessiKaPay pour les opérations de paiement prévues par la plateforme.</div>
+                    </details>
+
+                    <details class="faq-item">
+                        <summary>Comment fonctionne mon portefeuille ?</summary>
+                        <div class="faq-answer">Le portefeuille affiche ton solde et les opérations disponibles sur ton compte NexMarket.</div>
+                    </details>
+
+                    <details class="faq-item">
+                        <summary>Quand le vendeur reçoit-il son argent ?</summary>
+                        <div class="faq-answer">Le paiement vendeur intervient après les étapes prévues par la transaction et la période de protection.</div>
+                    </details>
+
+                </div>
+
+                <div class="faq-support-box">
+                    <p>Tu ne trouves pas ta réponse ?</p>
+                    <button type="button" class="primary-action full-width faq-support-button">
+                        ${ICONS.message}
+                        Contacter le support
+                    </button>
+                </div>
+
+            </div>
+        `);
+
+        // Un seul panneau FAQ ouvert à la fois.
+        document
+            .querySelectorAll('.faq-item')
+            .forEach(item => {
+                item.addEventListener('toggle', () => {
+                    if (!item.open) return;
+                    document.querySelectorAll('.faq-item').forEach(other => {
+                        if (other !== item) other.removeAttribute('open');
+                    });
+                });
+            });
+
+        document
+            .querySelector('.faq-support-button')
+            ?.addEventListener('click', openSupport);
+    }
+
+
+    /* =====================================================
        SUPPORT
     ===================================================== */
 
@@ -4954,7 +7359,7 @@
                 "click",
                 () => {
 
-                    openSupport();
+                    openFAQ();
                 }
             );
     }
