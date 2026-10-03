@@ -8,7 +8,7 @@ Frontend administration
 
 IMPORTANT :
 - Aucun ADMIN_CODE dans ce fichier.
-- Aucun secret Money Fusion.
+- Aucun secret de paiement côté frontend.
 - Aucun token permanent.
 - Le token admin est reçu du backend après vérification.
 =========================================================
@@ -23,7 +23,7 @@ const CONFIG = {
 
     API_BASE_URL:
         window.NEXMARKET_API_URL ||
-        "https://TON-BACKEND.onrender.com/api",
+        "https://nexamarket-backend.onrender.com/api",
 
     TOKEN_KEY:
         "nexmarket_admin_token",
