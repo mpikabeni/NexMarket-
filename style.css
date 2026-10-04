@@ -3158,4 +3158,527 @@ button svg {
         grid-template-columns: 1fr;
     }
 }
-\n\n/* =========================================================\n   NEXMARKET — UNIFIED SELECTION / CHOICE DESIGN\n   ========================================================= */\n.selection-modal, .choice-form, .category-panel, .filter-panel, .choice-panel {\n    color: var(--text, #fff);\n}\n\n.selection-modal {\n    width: 100%;\n}\n\n.selection-modal-header {\n    display: flex;\n    align-items: flex-start;\n    justify-content: space-between;\n    gap: 12px;\n    margin-bottom: 18px;\n}\n\n.selection-modal-header h2 {\n    margin: 5px 0 0;\n    font-size: 19px;\n    line-height: 1.2;\n}\n\n.selection-subtitle {\n    margin: 6px 0 0;\n    color: var(--text-muted, #8e8e9b);\n    font-size: 10px;\n}\n\n.choice-form {\n    display: flex;\n    flex-direction: column;\n    gap: 13px;\n}\n\n.choice-form label {\n    display: flex;\n    flex-direction: column;\n    gap: 7px;\n    color: var(--text-soft, #b8b8c5);\n    font-size: 10px;\n    font-weight: 650;\n}\n\n.choice-form input, .choice-form select, .choice-form textarea {\n    width: 100%;\n    min-height: 48px;\n    border: 1px solid rgba(255,255,255,.09);\n    border-radius: 15px;\n    outline: none;\n    background: #111118;\n    color: #fff;\n    padding: 12px 13px;\n    font-size: 12px;\n    box-sizing: border-box;\n}\n\n.choice-form input:focus, .choice-form select:focus, .choice-form textarea:focus {\n    border-color: #a855f7;\n    box-shadow: 0 0 0 3px rgba(168,85,247,.10);\n}\n\n.category-panel, .choice-panel, .filter-panel {\n    border: 1px solid rgba(168,85,247,.18);\n    border-radius: 22px;\n    background: linear-gradient(180deg, #15151d 0%, #0d0d13 100%);\n    box-shadow: 0 20px 70px rgba(0,0,0,.45);\n}\n\n.category-panel-header, .choice-panel-header, .filter-panel-header {\n    display: flex;\n    align-items: center;\n    justify-content: space-between;\n    gap: 12px;\n    padding: 16px 16px 12px;\n}\n\n.category-panel-header > div, .choice-panel-header > div, .filter-panel-header > div {\n    display: flex;\n    flex-direction: column;\n    gap: 4px;\n}\n\n.category-panel-header span, .choice-panel-header span, .filter-panel-header span {\n    color: #b77cff;\n    font-size: 9px;\n    font-weight: 800;\n    letter-spacing: .12em;\n}\n\n.category-panel-header strong, .choice-panel-header strong, .filter-panel-header strong {\n    color: #fff;\n    font-size: 14px;\n}\n\n.category-close, .choice-close, .filter-close {\n    width: 38px;\n    height: 38px;\n    flex: 0 0 auto;\n    display: grid;\n    place-items: center;\n    border: 0;\n    border-radius: 12px;\n    background: rgba(255,255,255,.07);\n    color: #bdbdcc;\n    font-size: 22px;\n}\n\n.category-options, .choice-options, .filter-options {\n    display: grid;\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n    gap: 9px;\n    padding: 8px 16px 16px;\n}\n\n.category-options button, .choice-options button, .filter-options button {\n    min-height: 46px;\n    padding: 10px 12px;\n    border: 1px solid rgba(255,255,255,.08);\n    border-radius: 14px;\n    background: #1a1a22;\n    color: #d9d9e4;\n    text-align: left;\n    font-size: 11px;\n    font-weight: 650;\n    transition: .18s ease;\n}\n\n.category-options button:hover, .choice-options button:hover, .filter-options button:hover,\n.category-options button.active, .choice-options button.active, .filter-options button.active {\n    border-color: #b86cff;\n    background: linear-gradient(135deg, rgba(139,92,246,.20), rgba(168,85,247,.08));\n    color: #fff;\n    box-shadow: 0 0 0 1px rgba(168,85,247,.12), 0 10px 25px rgba(139,92,246,.08);\n}\n\n.filter-row {\n    display: flex;\n    align-items: center;\n    gap: 8px;\n    overflow-x: auto;\n    padding-bottom: 2px;\n}\n\n.filter-button, .filter-chip {\n    min-height: 42px;\n    border-radius: 14px;\n    border: 1px solid rgba(255,255,255,.08);\n    background: #17171f;\n    color: #c9c9d6;\n    padding: 0 13px;\n    white-space: nowrap;\n    font-size: 11px;\n    font-weight: 650;\n}\n\n.filter-button.active, .filter-chip.active {\n    border-color: #a855f7;\n    background: linear-gradient(135deg, #8b5cf6, #b43fbd);\n    color: #fff;\n    box-shadow: 0 8px 25px rgba(139,92,246,.18);\n}\n\n.gradient-action {\n    border: 0 !important;\n    background: linear-gradient(135deg, #8b5cf6, #c13cc3) !important;\n    color: #fff !important;\n    box-shadow: 0 10px 30px rgba(139,92,246,.18);\n}\n\n.jessikapay-provider {\n    border: 1px solid rgba(168,85,247,.18) !important;\n    border-radius: 16px !important;\n    background: linear-gradient(135deg, rgba(139,92,246,.10), rgba(168,85,247,.05)) !important;\n}\n\n.jessikapay-provider strong {\n    color: #b77cff !important;\n}\n\n.profile-avatar-large img {\n    width: 100%;\n    height: 100%;\n    object-fit: cover;\n    border-radius: inherit;\n    display: block;\n}\n\n.profile-avatar-large {\n    overflow: hidden;\n}\n\n.telegram-avatar.visible {\n    display: block !important;\n}\n\n.telegram-avatar.hidden {\n    display: none !important;\n}\n\n@media (max-width: 480px) {\n    .category-options, .choice-options, .filter-options {\n        gap: 8px;\n        padding-inline: 12px;\n    }\n    .category-options button, .choice-options button, .filter-options button {\n        min-height: 44px;\n    }\n}\n
+
+/* =========================================================
+   NEXMARKET — UNIFIED CHOICE / SELECTION SYSTEM
+   Category / Country / Price / Language / Subscribers / Sort
+   ========================================================= */
+
+:root {
+    --choice-bg: #111118;
+    --choice-surface: #17171f;
+    --choice-surface-hover: #1d1d27;
+    --choice-border: rgba(255,255,255,.08);
+    --choice-border-hover: rgba(167,139,250,.38);
+    --choice-purple: #8b5cf6;
+    --choice-purple-light: #c4b5fd;
+    --choice-pink: #ec4899;
+}
+
+/* Shared headings used by every selector */
+.section-kicker,
+.choice-kicker,
+.selection-kicker,
+.category-panel-header span {
+    color: var(--choice-purple-light);
+    font-size: 10px;
+    line-height: 1.1;
+    font-weight: 800;
+    letter-spacing: 1.25px;
+    text-transform: uppercase;
+}
+
+.modal-header-content h2,
+.category-panel-header strong,
+.choice-title,
+.selection-title {
+    color: var(--text);
+    font-size: 18px;
+    line-height: 1.15;
+    font-weight: 780;
+    letter-spacing: -.35px;
+}
+
+/* =========================================================
+   CATEGORY PICKER
+   ========================================================= */
+
+.nexa-category-picker {
+    position: relative;
+    width: 100%;
+}
+
+.category-trigger {
+    width: 100%;
+    min-height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 14px;
+    border-radius: 15px;
+    border: 1px solid var(--choice-border);
+    background: var(--choice-surface);
+    color: var(--text-soft);
+    text-align: left;
+    transition: background var(--transition), border-color var(--transition), box-shadow var(--transition), transform var(--transition);
+}
+
+.category-trigger:hover,
+.category-trigger[aria-expanded="true"] {
+    background: var(--choice-surface-hover);
+    border-color: var(--choice-border-hover);
+    box-shadow: 0 0 0 3px rgba(139,92,246,.06), 0 10px 28px rgba(0,0,0,.18);
+}
+
+.category-trigger:active {
+    transform: scale(.985);
+}
+
+.category-trigger-arrow {
+    width: 30px;
+    height: 30px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    border-radius: 10px;
+    background: rgba(255,255,255,.055);
+    color: var(--choice-purple-light);
+    font-size: 13px;
+}
+
+.category-panel {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: calc(100% + 9px);
+    z-index: 3000;
+    padding: 14px;
+    border: 1px solid rgba(255,255,255,.09);
+    border-radius: 22px;
+    background:
+        radial-gradient(circle at 85% 0%, rgba(139,92,246,.11), transparent 38%),
+        linear-gradient(145deg, #17171f, #0e0e14);
+    box-shadow: 0 24px 70px rgba(0,0,0,.52), 0 0 35px rgba(139,92,246,.08);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    animation: choicePanelIn 180ms ease both;
+}
+
+.category-panel.hidden {
+    display: none !important;
+}
+
+.category-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 13px;
+    padding: 2px 2px 0;
+}
+
+.category-panel-header > div {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.category-close {
+    width: 36px;
+    height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    border-radius: 11px;
+    background: rgba(255,255,255,.065);
+    color: var(--text-soft);
+    font-size: 22px;
+    line-height: 1;
+    transition: transform var(--transition), background var(--transition), color var(--transition);
+}
+
+.category-close:hover {
+    background: rgba(139,92,246,.13);
+    color: var(--text);
+}
+
+.category-close:active {
+    transform: scale(.9);
+}
+
+.category-options {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    max-height: min(390px, 58vh);
+    overflow-y: auto;
+    padding: 1px;
+    scrollbar-width: thin;
+}
+
+.category-options button,
+.choice-list button,
+.selection-options button,
+.range-options button,
+.sort-options button,
+.language-options button,
+.country-options button,
+.subscriber-options button {
+    width: 100%;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 9px;
+    padding: 11px 12px;
+    border: 1px solid var(--choice-border);
+    border-radius: 14px;
+    background: rgba(255,255,255,.035);
+    color: var(--text-soft);
+    text-align: left;
+    font-size: 11px;
+    font-weight: 650;
+    transition: transform var(--transition), background var(--transition), border-color var(--transition), color var(--transition), box-shadow var(--transition);
+}
+
+.category-options button:hover,
+.choice-list button:hover,
+.selection-options button:hover,
+.range-options button:hover,
+.sort-options button:hover,
+.language-options button:hover,
+.country-options button:hover,
+.subscriber-options button:hover {
+    background: rgba(139,92,246,.09);
+    border-color: var(--choice-border-hover);
+    color: var(--text);
+}
+
+.category-options button:active,
+.choice-list button:active,
+.selection-options button:active,
+.range-options button:active,
+.sort-options button:active,
+.language-options button:active,
+.country-options button:active,
+.subscriber-options button:active {
+    transform: scale(.975);
+}
+
+.category-options button.active,
+.category-options button.selected,
+.category-options button[aria-selected="true"],
+.choice-list button.active,
+.choice-list button.selected,
+.choice-list button[aria-selected="true"],
+.selection-options button.active,
+.selection-options button.selected,
+.range-options button.active,
+.range-options button.selected,
+.sort-options button.active,
+.sort-options button.selected,
+.language-options button.active,
+.language-options button.selected,
+.country-options button.active,
+.country-options button.selected,
+.subscriber-options button.active,
+.subscriber-options button.selected {
+    color: #fff;
+    background: linear-gradient(135deg, rgba(139,92,246,.23), rgba(113,57,216,.14));
+    border-color: rgba(167,139,250,.78);
+    box-shadow: 0 0 0 2px rgba(139,92,246,.08), 0 8px 24px rgba(139,92,246,.10);
+}
+
+/* =========================================================
+   GENERIC CHOICE MODALS
+   ========================================================= */
+
+.choice-list,
+.selection-options,
+.range-options,
+.sort-options,
+.language-options {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 16px;
+}
+
+.choice-list.grid,
+.selection-options.grid,
+.country-options,
+.language-options.grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0,1fr));
+    gap: 8px;
+}
+
+.country-options {
+    margin-top: 16px;
+}
+
+.country-option,
+.country-options button {
+    min-height: 48px;
+}
+
+.country-options button img,
+.country-options button .flag,
+.country-options button .country-flag {
+    width: 23px;
+    height: 17px;
+    flex: 0 0 auto;
+    object-fit: cover;
+    border-radius: 4px;
+}
+
+.choice-list button strong,
+.selection-options button strong,
+.country-options button strong {
+    color: var(--text);
+    font-weight: 700;
+}
+
+/* Long vertical selectors: Price / Language / Subscribers / Sort */
+.range-options button,
+.sort-options button,
+.language-options button,
+.subscriber-options button {
+    min-height: 48px;
+    border-radius: 14px;
+}
+
+/* =========================================================
+   FILTERS SCREEN
+   ========================================================= */
+
+.filter-form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+.filter-form > label,
+.filter-form > .filter-field {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+
+.filter-form > label > span,
+.filter-form .filter-label,
+.filter-field > span {
+    color: var(--text-muted);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: .25px;
+}
+
+.filter-form select,
+.filter-form input,
+.sell-form select,
+.sell-form input,
+.sell-form textarea,
+.form-select,
+.form-input,
+.form-textarea {
+    min-height: 48px;
+    border-radius: 15px;
+    border: 1px solid var(--choice-border);
+    background: var(--choice-surface);
+    color: var(--text);
+    outline: none;
+}
+
+.filter-form select:focus,
+.filter-form input:focus,
+.sell-form select:focus,
+.sell-form input:focus,
+.sell-form textarea:focus,
+.form-select:focus,
+.form-input:focus,
+.form-textarea:focus {
+    border-color: rgba(167,139,250,.58);
+    box-shadow: 0 0 0 3px rgba(139,92,246,.07), 0 0 24px rgba(139,92,246,.08);
+}
+
+.filter-form select option,
+.sell-form select option,
+.form-select option {
+    background: #17171f;
+    color: #fff;
+}
+
+.filter-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 9px;
+    margin-top: 6px;
+}
+
+/* =========================================================
+   MODAL CONSISTENCY
+   ========================================================= */
+
+.modal-container {
+    align-items: center;
+    padding: 16px;
+}
+
+.modal-content {
+    width: min(100%, 560px);
+    max-height: min(88vh, 720px);
+    border-radius: 25px;
+    border: 1px solid rgba(255,255,255,.08);
+    padding: 20px 16px calc(20px + env(safe-area-inset-bottom));
+    background:
+        radial-gradient(circle at 90% 0%, rgba(139,92,246,.10), transparent 32%),
+        linear-gradient(145deg, #17171f, #0e0e14);
+    box-shadow: 0 30px 90px rgba(0,0,0,.62), 0 0 45px rgba(139,92,246,.07);
+}
+
+.modal-overlay {
+    background: rgba(0,0,0,.76);
+}
+
+.modal-close {
+    width: 38px;
+    height: 38px;
+    border-radius: 11px;
+    background: rgba(255,255,255,.065);
+}
+
+.modal-close:hover {
+    background: rgba(139,92,246,.13);
+    color: #fff;
+}
+
+/* =========================================================
+   WALLET / PROFILE / FORM CARDS
+   ========================================================= */
+
+.wallet-card,
+.profile-card,
+.settings-section,
+.transaction-card,
+.sell-form {
+    background: linear-gradient(145deg, rgba(23,23,31,.96), rgba(14,14,20,.96));
+    border-color: rgba(255,255,255,.075);
+}
+
+.wallet-action,
+.profile-menu-item,
+.settings-list button {
+    border-radius: 16px;
+    border-color: rgba(255,255,255,.075);
+    background: rgba(255,255,255,.035);
+}
+
+.wallet-action:hover,
+.profile-menu-item:hover,
+.settings-list button:hover {
+    background: rgba(139,92,246,.075);
+    border-color: rgba(139,92,246,.24);
+}
+
+/* =========================================================
+   TELEGRAM PROFILE PHOTO
+   ========================================================= */
+
+.telegram-avatar,
+.profile-large-avatar img {
+    display: block;
+    object-fit: cover;
+    object-position: center;
+    overflow: hidden;
+    background: #17171f;
+}
+
+.profile-large-avatar {
+    overflow: hidden;
+}
+
+.profile-large-avatar img {
+    width: 100%;
+    height: 100%;
+    border-radius: inherit;
+}
+
+/* =========================================================
+   BOTTOM NAV — SAME VISUAL LANGUAGE
+   ========================================================= */
+
+.bottom-navigation {
+    background: rgba(10,10,15,.96);
+    border-top-color: rgba(255,255,255,.065);
+}
+
+.nav-item {
+    border-radius: 16px;
+}
+
+.nav-item.active .nav-icon {
+    background: linear-gradient(145deg, rgba(139,92,246,.18), rgba(236,72,153,.08));
+    box-shadow: 0 0 22px rgba(139,92,246,.10);
+}
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+
+@media (max-width: 520px) {
+    .modal-container {
+        align-items: flex-end;
+        padding: 0;
+    }
+
+    .modal-content {
+        width: 100%;
+        max-height: 88vh;
+        border-radius: 25px 25px 0 0;
+        padding-bottom: calc(18px + env(safe-area-inset-bottom));
+    }
+
+    .category-panel {
+        max-height: min(70vh, 520px);
+    }
+
+    .category-options,
+    .choice-list.grid,
+    .selection-options.grid,
+    .country-options,
+    .language-options.grid {
+        grid-template-columns: repeat(2, minmax(0,1fr));
+    }
+}
+
+@media (max-width: 360px) {
+    .category-options,
+    .choice-list.grid,
+    .selection-options.grid,
+    .country-options,
+    .language-options.grid {
+        grid-template-columns: 1fr;
+    }
+
+    .filter-actions {
+        grid-template-columns: 1fr;
+    }
+}
+
+@keyframes choicePanelIn {
+    from {
+        opacity: 0;
+        transform: translateY(-5px) scale(.985);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
