@@ -7346,94 +7346,107 @@
        APPLICATION INITIALIZATION
     ===================================================== */
 
-    async function initializeApp() {
+    async function initApp() {
 
-        try {
+    /*
+       Afficher immédiatement l'application.
+       Aucun appel réseau ne doit empêcher
+       la disparition du splash.
+    */
 
-            showLoading(
-                "Chargement de NexMarket..."
-            );
-
-
-            await initializeTelegram();
-
-
-            await loadCurrentUser();
+    showApplication();
 
 
-            await navigateTo(
-                "home"
-            );
+    /*
+       FAIL-SAFE SPLASH
+
+       Le splash disparaîtra dans 2 secondes
+       même si Render, Telegram ou l'API
+       ne répondent pas.
+    */
+
+    setTimeout(() => {
+
+        hideSplash();
+
+    }, 2000);
 
 
-            hideSplash();
+    /*
+       Initialisation de l'interface
+    */
 
+    try {
 
-        } catch (error) {
+        initTelegram();
 
-            console.error(
-                "Initialisation NexMarket:",
-                error
-            );
+        setupHeader();
 
+        setupBottomNavigation();
 
-            hideSplash();
+        setupModal();
 
+    } catch (error) {
 
-            if (
-                DOM.pageContainer
-            ) {
+        console.error(
+            "Erreur interface NexMarket:",
+            error
+        );
 
-                DOM.pageContainer.innerHTML = `
-
-                    <div class="empty-state">
-
-                        <div class="empty-state-icon">
-                            ${ICONS.warning}
-                        </div>
-
-                        <h3>
-                            Impossible de charger NexMarket
-                        </h3>
-
-                        <p>
-                            ${
-                                escapeHTML(
-                                    error.message ||
-                                    "Une erreur inattendue est survenue."
-                                )
-                            }
-                        </p>
-
-
-                        <button
-                            type="button"
-                            class="primary-action"
-                            data-action="reload"
-                        >
-                            Réessayer
-                        </button>
-
-                    </div>
-
-                `;
-
-
-                document
-                    .querySelector(
-                        '[data-action="reload"]'
-                    )
-                    ?.addEventListener(
-                        "click",
-                        () => {
-
-                            window.location.reload();
-
-                        }
-                    );
-            }
-        }
     }
+
+
+    /*
+       Charger l'utilisateur.
+
+       Cette requête ne peut plus bloquer
+       le splash.
+    */
+
+    try {
+
+        await loadCurrentUser();
+
+    } catch (error) {
+
+        console.warn(
+            "Utilisateur non chargé:",
+            error
+        );
+
+    }
+
+
+    /*
+       Charger l'accueil.
+    */
+
+    try {
+
+        await navigateTo("home");
+
+    } catch (error) {
+
+        console.error(
+            "Erreur accueil NexMarket:",
+            error
+        );
+
+
+        if (DOM.pageContainer) {
+
+            DOM.pageContainer.innerHTML =
+                showEmpty(
+                    "NexMarket",
+                    "Impossible de charger les annonces pour le moment.",
+                    ICONS.help
+                );
+
+        }
+
+    }
+
+}
 
 
     /* =====================================================
