@@ -23,4 +23,3 @@ Structure:
 - admin/admin.js
 - admin/admin.css
 
-Le vrai logo.png doit être ajouté à la racine s'il n'est pas déjà disponible.
