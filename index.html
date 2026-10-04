@@ -1,6 +1,5 @@
 <!DOCTYPE html>
 <html lang="fr">
-
 <head>
     <meta charset="UTF-8">
 
@@ -9,15 +8,8 @@
         content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
     >
 
-    <meta
-        name="theme-color"
-        content="#08080c"
-    >
-
-    <meta
-        name="color-scheme"
-        content="dark"
-    >
+    <meta name="theme-color" content="#08080c">
+    <meta name="color-scheme" content="dark">
 
     <title>NexMarket</title>
 
@@ -26,78 +18,49 @@
         content="NexMarket — La marketplace des canaux Telegram en Afrique."
     >
 
-    <link
-        rel="stylesheet"
-        href="style.css"
-    >
+    <link rel="stylesheet" href="style.css?v=20261004-ui-final">
 </head>
 
-
 <body>
-
 
 <!-- =========================================================
      SPLASH SCREEN
 ========================================================= -->
 
-<div
-    id="splashScreen"
-    class="splash-screen"
->
+<div id="splashScreen" class="splash-screen">
 
     <div class="splash-content">
 
         <div class="splash-logo">
+    <img src="logo.png" alt="NexMarket">
+      </div>
 
-            <img
-                src="logo.png"
-                alt="NexMarket"
-            >
-
-        </div>
-
-
-        <h1>
-            NexMarket
-        </h1>
-
+        <h1>NexMarket</h1>
 
         <p>
             La marketplace des canaux Telegram
         </p>
 
-
         <div class="splash-loader">
-
             <span></span>
             <span></span>
             <span></span>
-
         </div>
 
     </div>
 
-
     <div class="splash-footer">
-
-        Propulsé par
-        <strong>NEXA</strong>
-
+        Propulsé par <strong>NEXA</strong>
     </div>
 
 </div>
-
 
 
 <!-- =========================================================
      APPLICATION
 ========================================================= -->
 
-<div
-    id="app"
-    class="app"
->
-
+<div id="app" class="app hidden">
 
     <!-- =====================================================
          HEADER
@@ -105,12 +68,9 @@
 
     <header class="top-header">
 
-
         <div class="header-left">
 
-
-            <!-- PHOTO TELEGRAM -->
-
+            <!-- Photo Telegram -->
             <button
                 id="profileAvatarButton"
                 class="profile-avatar-button"
@@ -120,14 +80,12 @@
 
                 <div class="avatar-wrapper">
 
-
                     <img
                         id="telegramAvatar"
                         class="telegram-avatar hidden"
                         src=""
                         alt="Profil Telegram"
                     >
-
 
                     <div
                         id="avatarLetter"
@@ -136,27 +94,21 @@
                         N
                     </div>
 
-
                     <span class="avatar-online"></span>
 
                 </div>
 
             </button>
 
-
-
             <div class="header-title-area">
-
 
                 <span class="header-small-text">
                     Bienvenue
                 </span>
 
-
                 <h1>
                     NexMarket
                 </h1>
-
 
                 <span
                     id="headerGreeting"
@@ -170,9 +122,7 @@
         </div>
 
 
-
         <div class="header-actions">
-
 
             <button
                 id="headerSearchButton"
@@ -188,19 +138,9 @@
                     stroke-width="1.8"
                     stroke-linecap="round"
                     stroke-linejoin="round"
-                    aria-hidden="true"
                 >
-
-                    <circle
-                        cx="11"
-                        cy="11"
-                        r="7"
-                    ></circle>
-
-                    <path
-                        d="m20 20-4-4"
-                    ></path>
-
+                    <circle cx="11" cy="11" r="7"></circle>
+                    <path d="m20 20-4-4"></path>
                 </svg>
 
             </button>
@@ -208,7 +148,6 @@
         </div>
 
     </header>
-
 
 
     <!-- =====================================================
@@ -220,10 +159,9 @@
         class="page-container"
     >
 
-        <!-- Les pages sont injectées par app.js -->
+        <!-- Les pages sont injectées par app.js?v=20261004-ui-final -->
 
     </main>
-
 
 
     <!-- =====================================================
@@ -232,17 +170,15 @@
 
     <button
         id="faqButton"
-        class="faq-button"
+        class="faq-floating-button"
         type="button"
         aria-label="Questions fréquentes"
+        title="Questions fréquentes"
     >
 
-        <span>
-            ?
-        </span>
+        <span class="faq-icon">?</span>
 
     </button>
-
 
 
     <!-- =====================================================
@@ -250,11 +186,10 @@
     ====================================================== -->
 
     <nav
-        id="bottomNavigation"
         class="bottom-navigation"
+        id="bottomNavigation"
         aria-label="Navigation principale"
     >
-
 
         <!-- ACCUEIL -->
 
@@ -273,32 +208,23 @@
                     stroke-width="1.8"
                     stroke-linecap="round"
                     stroke-linejoin="round"
-                    aria-hidden="true"
                 >
 
-                    <path
-                        d="M3 10.5 12 3l9 7.5"
-                    ></path>
+                    <path d="M3 10.5 12 3l9 7.5"></path>
 
-                    <path
-                        d="M5 9.5V21h14V9.5"
-                    ></path>
+                    <path d="M5.5 9.5V21h13V9.5"></path>
 
-                    <path
-                        d="M9 21v-6h6v6"
-                    ></path>
+                    <path d="M9.5 21v-6h5v6"></path>
 
                 </svg>
 
             </span>
-
 
             <span class="nav-label">
                 Accueil
             </span>
 
         </button>
-
 
 
         <!-- ACHETER -->
@@ -318,40 +244,24 @@
                     stroke-width="1.8"
                     stroke-linecap="round"
                     stroke-linejoin="round"
-                    aria-hidden="true"
                 >
 
-                    <path
-                        d="M6 8h12"
-                    ></path>
+                    <path d="M6 7h12l1.2 13H4.8L6 7Z"></path>
 
-                    <path
-                        d="M7 8V6a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v2"
-                    ></path>
+                    <path d="M9 7a3 3 0 0 1 6 0"></path>
 
-                    <rect
-                        x="4"
-                        y="8"
-                        width="16"
-                        height="12"
-                        rx="2"
-                    ></rect>
-
-                    <path
-                        d="M9 12h6"
-                    ></path>
+                    <path d="M9 11h.01"></path>
+                    <path d="M15 11h.01"></path>
 
                 </svg>
 
             </span>
-
 
             <span class="nav-label">
                 Acheter
             </span>
 
         </button>
-
 
 
         <!-- VENDRE -->
@@ -371,32 +281,23 @@
                     stroke-width="1.8"
                     stroke-linecap="round"
                     stroke-linejoin="round"
-                    aria-hidden="true"
                 >
 
-                    <path
-                        d="M12 17V3"
-                    ></path>
+                    <path d="M12 19V5"></path>
 
-                    <path
-                        d="m7 8 5-5 5 5"
-                    ></path>
+                    <path d="m6.5 10.5 5.5-5.5 5.5 5.5"></path>
 
-                    <path
-                        d="M5 21h14"
-                    ></path>
+                    <path d="M5 19h14"></path>
 
                 </svg>
 
             </span>
-
 
             <span class="nav-label">
                 Vendre
             </span>
 
         </button>
-
 
 
         <!-- MESSAGES -->
@@ -416,36 +317,25 @@
                     stroke-width="1.8"
                     stroke-linecap="round"
                     stroke-linejoin="round"
-                    aria-hidden="true"
                 >
 
                     <path
-                        d="M20 11.5a7.5 7.5 0 0 1-7.5 7.5H8l-4 2 1.5-4A7.5 7.5 0 1 1 20 11.5Z"
+                        d="M20 11.5a7.5 7.5 0 0 1-7.8 7.5 8.5 8.5 0 0 1-3.4-.7L4 20l1.4-4.2A7.3 7.3 0 0 1 4.5 12 7.5 7.5 0 0 1 12 4.5h.5A7.5 7.5 0 0 1 20 11.5Z"
                     ></path>
 
-                    <path
-                        d="M8.5 11.5h.01"
-                    ></path>
-
-                    <path
-                        d="M12 11.5h.01"
-                    ></path>
-
-                    <path
-                        d="M15.5 11.5h.01"
-                    ></path>
+                    <path d="M8.5 12h.01"></path>
+                    <path d="M12 12h.01"></path>
+                    <path d="M15.5 12h.01"></path>
 
                 </svg>
 
             </span>
-
 
             <span class="nav-label">
                 Messages
             </span>
 
         </button>
-
 
 
         <!-- PROFIL -->
@@ -465,7 +355,6 @@
                     stroke-width="1.8"
                     stroke-linecap="round"
                     stroke-linejoin="round"
-                    aria-hidden="true"
                 >
 
                     <circle
@@ -482,16 +371,13 @@
 
             </span>
 
-
             <span class="nav-label">
                 Profil
             </span>
 
         </button>
 
-
     </nav>
-
 
 
     <!-- =====================================================
@@ -504,20 +390,13 @@
         role="status"
         aria-live="polite"
     >
-
         <div class="toast-icon"></div>
 
-
         <div class="toast-content">
-
             <strong id="toastTitle"></strong>
-
             <span id="toastMessage"></span>
-
         </div>
-
     </div>
-
 
 
     <!-- =====================================================
@@ -530,12 +409,10 @@
         aria-hidden="true"
     >
 
-
         <div
             id="modalOverlay"
             class="modal-overlay"
         ></div>
-
 
         <div
             id="modalContent"
@@ -543,7 +420,6 @@
             role="dialog"
             aria-modal="true"
         >
-
 
             <button
                 id="modalClose"
@@ -558,21 +434,14 @@
                     stroke="currentColor"
                     stroke-width="1.8"
                     stroke-linecap="round"
-                    aria-hidden="true"
                 >
 
-                    <path
-                        d="M6 6l12 12"
-                    ></path>
-
-                    <path
-                        d="M18 6 6 18"
-                    ></path>
+                    <path d="M6 6l12 12"></path>
+                    <path d="M18 6 6 18"></path>
 
                 </svg>
 
             </button>
-
 
             <div id="modalBody"></div>
 
@@ -580,61 +449,20 @@
 
     </div>
 
-
 </div>
-
 
 
 <!-- =========================================================
      TELEGRAM WEB APP
 ========================================================= -->
 
-<script
-    src="https://telegram.org/js/telegram-web-app.js"
-></script>
-
-
+<script src="https://telegram.org/js/telegram-web-app.js?v=20261004-ui-final"></script>
 
 <!-- =========================================================
      APPLICATION JAVASCRIPT
 ========================================================= -->
 
-<script>
-(function () {
-    function startNexMarket() {
-        var splash = document.getElementById("splashScreen");
-        var app = document.getElementById("app");
-
-        if (app) {
-            app.classList.remove("hidden");
-            app.style.display = "block";
-            app.style.visibility = "visible";
-            app.style.opacity = "1";
-        }
-
-        if (splash) {
-            splash.style.opacity = "0";
-            splash.style.visibility = "hidden";
-            splash.style.pointerEvents = "none";
-
-            setTimeout(function () {
-                if (splash) {
-                    splash.style.display = "none";
-                    splash.remove();
-                }
-            }, 500);
-        }
-
-        console.log("NexMarket : splash terminé");
-    }
-
-    setTimeout(startNexMarket, 2500);
-    window.addEventListener("error", function () { startNexMarket(); });
-    window.addEventListener("unhandledrejection", function () { startNexMarket(); });
-})();
-</script>
-
-<script src="app.js?v=20261004-3"></script>
+<script src="app.js?v=20261004-ui-final"></script>
 
 </body>
 </html>
