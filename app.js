@@ -7353,13 +7353,30 @@
        Aucun appel réseau ne doit empêcher
        la disparition du splash.
     */
+async function initApp() {
 
-    showApplication();
-       
-       setTimeout(() => {
-       hideSplash();
-       }, 2500);
-       
+    // Sécurité : le splash ne doit jamais bloquer l'application
+    hideSplash();
+
+    try {
+
+        initTelegram();
+
+        setupHeader();
+
+        setupBottomNavigation();
+
+        setupModal();
+
+    } catch (error) {
+
+        console.error(
+            "Erreur interface NexMarket:",
+            error
+        );
+    }
+
+    // suite de ton code...
 
     /*
        FAIL-SAFE SPLASH
@@ -7457,34 +7474,26 @@
        SPLASH SCREEN
     ===================================================== */
 
-    function hideSplash() {
+   function hideSplash() {
 
-        const splash =
-            document.getElementById(
-                "splashScreen"
-            );
+    const splash = document.getElementById("splashScreen");
+    const app = document.getElementById("app");
 
-
-        if (!splash) {
-            return;
-        }
-
-
-        splash.classList.add(
-            "hidden"
-        );
-
-
-        setTimeout(
-            () => {
-
-                splash.style.display =
-                    "none";
-
-            },
-            500
-        );
+    // Afficher l'application immédiatement
+    if (app) {
+        app.classList.remove("hidden");
+        app.style.display = "block";
+        app.style.visibility = "visible";
+        app.style.opacity = "1";
     }
+
+    // Supprimer complètement le splash
+    if (splash) {
+        splash.remove();
+    }
+
+    console.log("NexMarket: splash supprimé");
+}
 
 
     /* =====================================================
