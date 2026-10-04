@@ -95,7 +95,7 @@
 
 <div
     id="app"
-    class="app hidden"
+    class="app"
 >
 
 
@@ -599,7 +599,42 @@
      APPLICATION JAVASCRIPT
 ========================================================= -->
 
-<script src="app.js?v=20261004-2"></script>
+<script>
+(function () {
+    function startNexMarket() {
+        var splash = document.getElementById("splashScreen");
+        var app = document.getElementById("app");
+
+        if (app) {
+            app.classList.remove("hidden");
+            app.style.display = "block";
+            app.style.visibility = "visible";
+            app.style.opacity = "1";
+        }
+
+        if (splash) {
+            splash.style.opacity = "0";
+            splash.style.visibility = "hidden";
+            splash.style.pointerEvents = "none";
+
+            setTimeout(function () {
+                if (splash) {
+                    splash.style.display = "none";
+                    splash.remove();
+                }
+            }, 500);
+        }
+
+        console.log("NexMarket : splash terminé");
+    }
+
+    setTimeout(startNexMarket, 2500);
+    window.addEventListener("error", function () { startNexMarket(); });
+    window.addEventListener("unhandledrejection", function () { startNexMarket(); });
+})();
+</script>
+
+<script src="app.js?v=20261004-3"></script>
 
 </body>
 </html>
