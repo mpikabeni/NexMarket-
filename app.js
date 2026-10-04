@@ -7355,7 +7355,11 @@
     */
 
     showApplication();
-
+       
+       setTimeout(() => {
+       hideSplash();
+       }, 2500);
+       
 
     /*
        FAIL-SAFE SPLASH
