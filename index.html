@@ -18,7 +18,31 @@
         content="NexMarket — La marketplace des canaux Telegram en Afrique."
     >
 
-    <link rel="stylesheet" href="style.css?v=20261004-ui-final">
+    <link rel="stylesheet" href="style.css?v=20261004-ui-jp2">
+<style id="nexmarket-rendered-pages-fallback">
+/* NexMarket final rendered-page safety layer */
+#pageContainer{width:100%;max-width:760px;margin:0 auto;padding:18px 18px 110px;}
+#pageContainer .home-page,#pageContainer .buy-page,#pageContainer .sell-page,#pageContainer .profile-page,#pageContainer .wallet-page,#pageContainer .messages-page{display:block;width:100%;}
+#pageContainer .home-hero{position:relative;overflow:hidden;margin-top:8px;padding:24px;border-radius:28px;background:linear-gradient(145deg,#171720,#0f0f16);border:1px solid rgba(139,92,246,.25);box-shadow:0 18px 55px rgba(0,0,0,.35);}
+#pageContainer .hero-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:22px;}
+#pageContainer .primary-action,#pageContainer .secondary-action{min-height:52px;width:100%;display:inline-flex;align-items:center;justify-content:center;gap:9px;padding:13px 16px;border-radius:17px;font-size:12px;font-weight:750;cursor:pointer;}
+#pageContainer .primary-action{color:#fff;background:linear-gradient(135deg,#8b5cf6,#7139d8 55%,#ec4899);border:1px solid rgba(255,255,255,.08);box-shadow:0 12px 30px rgba(139,92,246,.22);}
+#pageContainer .secondary-action{color:#fff;background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.1);}
+#pageContainer .section-header{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin:22px 0 13px;}
+#pageContainer .section-kicker{display:inline-flex;color:#a78bfa;font-size:10px;font-weight:800;letter-spacing:1.4px;}
+#pageContainer .section-header h2,#pageContainer .page-heading h1{margin-top:6px;color:#fff;font-size:20px;line-height:1.15;}
+#pageContainer .text-button{display:inline-flex;align-items:center;gap:5px;padding:8px 2px;background:transparent;border:0;color:#a78bfa;font-size:11px;font-weight:700;cursor:pointer;}
+#pageContainer .listing-feed{display:flex;flex-direction:column;gap:12px;}
+#pageContainer .channel-listing{position:relative;overflow:hidden;border:1px solid rgba(255,255,255,.08);border-radius:22px;background:linear-gradient(145deg,#17171f,#0d0d13);box-shadow:0 10px 32px rgba(0,0,0,.22);}
+#pageContainer .listing-main{display:flex;gap:13px;padding:13px;}
+#pageContainer .empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:150px;padding:28px 18px;text-align:center;border:1px solid rgba(255,255,255,.08);border-radius:22px;background:#15151b;color:#fff;}
+#pageContainer .empty-state h3{margin-top:12px;font-size:14px;}
+#pageContainer .empty-state p{margin-top:5px;color:#777784;font-size:11px;}
+#pageContainer .buy-page,#pageContainer .sell-page,#pageContainer .profile-page,#pageContainer .wallet-page,#pageContainer .messages-page{animation:pageEnter .28s ease both;}
+#pageContainer input,#pageContainer select,#pageContainer textarea{width:100%;min-height:48px;padding:12px 14px;border-radius:15px;border:1px solid rgba(255,255,255,.09);background:#15151b;color:#fff;outline:none;}
+#pageContainer button{font-family:inherit;}
+@media(max-width:600px){#pageContainer{padding:14px 12px 105px}.hero-actions{grid-template-columns:1fr!important}.home-hero{padding:20px!important;}.home-hero h1{font-size:30px!important;}}
+</style>
 </head>
 
 <body>
@@ -159,7 +183,7 @@
         class="page-container"
     >
 
-        <!-- Les pages sont injectées par app.js?v=20261004-ui-final -->
+        <!-- Les pages sont injectées par app.js -->
 
     </main>
 
@@ -456,13 +480,13 @@
      TELEGRAM WEB APP
 ========================================================= -->
 
-<script src="https://telegram.org/js/telegram-web-app.js?v=20261004-ui-final"></script>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
 
 <!-- =========================================================
      APPLICATION JAVASCRIPT
 ========================================================= -->
 
-<script src="app.js?v=20261004-ui-final"></script>
+<script src="app.js?v=20261004-ui-jp2"></script>
 
 </body>
 </html>

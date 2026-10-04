@@ -764,19 +764,13 @@
 
         if (DOM.telegramAvatar) {
 
-            const photoUrl =
-                user.photo_url ||
-                user.avatar_url ||
-                "";
+            if (user.photo_url) {
 
-            if (photoUrl) {
-
-                DOM.telegramAvatar.src = photoUrl;
+                DOM.telegramAvatar.src = user.photo_url;
                 DOM.telegramAvatar.classList.remove("hidden");
                 DOM.telegramAvatar.classList.add("visible");
 
                 DOM.telegramAvatar.onerror = () => {
-                    DOM.telegramAvatar.removeAttribute("src");
                     DOM.telegramAvatar.classList.add("hidden");
                     DOM.telegramAvatar.classList.remove("visible");
 
@@ -787,7 +781,6 @@
 
             } else {
 
-                DOM.telegramAvatar.removeAttribute("src");
                 DOM.telegramAvatar.classList.add("hidden");
                 DOM.telegramAvatar.classList.remove("visible");
             }
@@ -1897,41 +1890,11 @@
                     "/users/me"
                 );
 
-            const backendUser =
+            state.user =
                 data?.user ||
-                data ||
-                {};
-
-            const telegramUser =
-                getTelegramUser() ||
-                {};
-
-            state.user = {
-                ...telegramUser,
-                ...backendUser,
-                photo_url:
-                    backendUser.photo_url ||
-                    telegramUser.photo_url ||
-                    backendUser.avatar_url ||
-                    telegramUser.avatar_url ||
-                    "",
-                first_name:
-                    backendUser.first_name ||
-                    telegramUser.first_name ||
-                    "",
-                last_name:
-                    backendUser.last_name ||
-                    telegramUser.last_name ||
-                    "",
-                username:
-                    backendUser.username ||
-                    backendUser.telegram_username ||
-                    telegramUser.username ||
-                    ""
-            };
+                data;
 
             updateTelegramProfile();
-            await refreshTelegramProfileData();
 
             return state.user;
 
@@ -1973,28 +1936,6 @@
 
             return state.user;
         }
-    }
-
-
-    /* =====================================================
-       REFRESH TELEGRAM PROFILE DATA
-    ===================================================== */
-
-    async function refreshTelegramProfileData() {
-        const telegramUser = getTelegramUser();
-        if (!telegramUser) return;
-
-        state.user = {
-            ...(state.user || {}),
-            ...telegramUser,
-            photo_url:
-                telegramUser.photo_url ||
-                state.user?.photo_url ||
-                state.user?.avatar_url ||
-                ""
-        };
-
-        updateTelegramProfile();
     }
 
 
@@ -3807,78 +3748,39 @@
     ) {
 
         openModal(`
-            <div class="modal-header-content">
-
-                <div>
-
-                    <span class="section-kicker">
-                        PORTEFEUILLE
-                    </span>
-
-                    <h2>
-                        Déposer de l'argent
-                    </h2>
-
+            <div class="wallet-action-modal">
+                <div class="wallet-action-head">
+                    <div>
+                        <span class="section-kicker">PORTEFEUILLE</span>
+                        <h2>Déposer de l'argent</h2>
+                        <p>Ajoute de l'argent à ton portefeuille via JessiKaPay.</p>
+                    </div>
                 </div>
 
+                <form id="depositForm" class="modal-form wallet-action-form">
+                    <label class="form-field">
+                        <span>Montant (XAF)</span>
+                        <div class="input-shell">
+                            <input id="depositAmount" type="number" min="1" step="1" inputmode="numeric" placeholder="Ex : 5000" value="${suggestedAmount || ""}" required>
+                            <b>XAF</b>
+                        </div>
+                    </label>
+
+                    <div class="provider-card">
+                        <div class="provider-icon">JP</div>
+                        <div>
+                            <span>Paiement sécurisé par</span>
+                            <strong>JessiKaPay</strong>
+                            <small>Tu seras redirigé vers la page de paiement sécurisée JessiKaPay.</small>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="primary-action full-width wallet-submit">
+                        ${ICONS.deposit} Continuer
+                    </button>
+                </form>
             </div>
-
-
-            <form
-                id="depositForm"
-                class="modal-form"
-            >
-
-                <label>
-                    Montant
-
-                    <input
-                        id="depositAmount"
-                        type="number"
-                        min="1"
-                        step="1"
-                        placeholder="Ex : 5000"
-                        value="${
-                            suggestedAmount ||
-                            ""
-                        }"
-                        required
-                    >
-
-                </label>
-
-
-                <div class="payment-provider">
-
-                    <span>
-                        Moyen de paiement
-                    </span>
-
-                    <strong>
-                        JessiKaPay
-                    </strong>
-
-                    <small>
-                        Le paiement sera effectué
-                        sur la page sécurisée
-                        JessiKaPay.
-                    </small>
-
-                </div>
-
-
-                <button
-                    type="submit"
-                    class="primary-action full-width"
-                >
-                    ${ICONS.deposit}
-
-                    Continuer
-                </button>
-
-            </form>
         `);
-
 
         document
             .getElementById(
@@ -3993,63 +3895,53 @@
     function openWalletWithdraw() {
 
         openModal(`
-            <div class="selection-modal jp-withdraw-modal">
-
-                <div class="selection-modal-header">
+            <div class="wallet-action-modal">
+                <div class="wallet-action-head">
                     <div>
                         <span class="section-kicker">PORTEFEUILLE</span>
                         <h2>Retirer de l'argent</h2>
-                        <p class="selection-subtitle">Vers ton numéro JessiKaPay</p>
+                        <p>Retire ton solde vers ton numéro JessiKaPay.</p>
                     </div>
                 </div>
 
-                <form id="withdrawForm" class="modal-form choice-form">
-
-                    <label>
-                        Montant (XAF)
-                        <input
-                            id="withdrawAmount"
-                            type="number"
-                            min="1"
-                            step="1"
-                            placeholder="Ex : 5000"
-                            required
-                        >
+                <form id="withdrawForm" class="modal-form wallet-action-form">
+                    <label class="form-field">
+                        <span>Montant (XAF)</span>
+                        <div class="input-shell">
+                            <input id="withdrawAmount" type="number" min="1" step="1" inputmode="numeric" placeholder="Ex : 5000" required>
+                            <b>XAF</b>
+                        </div>
                     </label>
 
-                    <label>
-                        Numéro JessiKaPay
-                        <input
-                            id="withdrawJpNumber"
-                            type="text"
-                            placeholder="Ex : JP12345678"
-                            autocomplete="off"
-                            required
-                        >
+                    <label class="form-field">
+                        <span>Numéro JessiKaPay</span>
+                        <input id="withdrawPhone" class="text-input" type="text" placeholder="Ex : JP12345678" autocomplete="off" required>
                     </label>
 
-                    <div class="payment-provider jessikapay-provider">
-                        <span>Retrait via</span>
-                        <strong>JessiKaPay</strong>
-                        <small>Les fonds seront envoyés vers ton numéro JessiKaPay.</small>
+                    <div class="provider-card">
+                        <div class="provider-icon">JP</div>
+                        <div>
+                            <span>Retrait via</span>
+                            <strong>JessiKaPay</strong>
+                            <small>Les fonds seront envoyés vers ton numéro JessiKaPay.</small>
+                        </div>
                     </div>
 
-                    <button
-                        type="submit"
-                        class="primary-action full-width gradient-action"
-                    >
-                        ${ICONS.withdraw}
-                        Continuer
+                    <button type="submit" class="primary-action full-width wallet-submit">
+                        ${ICONS.withdraw} Confirmer le retrait
                     </button>
-
                 </form>
-
             </div>
         `);
 
         document
-            .getElementById("withdrawForm")
-            ?.addEventListener("submit", handleWithdrawSubmit);
+            .getElementById(
+                "withdrawForm"
+            )
+            ?.addEventListener(
+                "submit",
+                handleWithdrawSubmit
+            );
     }
 
 
@@ -4059,64 +3951,105 @@
 
         event.preventDefault();
 
-        const amount = Number(
-            document.getElementById("withdrawAmount")?.value
-        );
 
-        const jpNumber = String(
-            document.getElementById("withdrawJpNumber")?.value || ""
-        ).trim();
+        const amountInput =
+            document.getElementById(
+                "withdrawAmount"
+            );
 
-        if (!Number.isFinite(amount) || amount <= 0) {
+
+
+        const phoneInput =
+            document.getElementById(
+                "withdrawPhone"
+            );
+
+
+        const amount =
+            Number(
+                amountInput?.value
+            );
+
+
+
+        const phone =
+            phoneInput?.value
+                ?.trim();
+
+
+        if (
+            !Number.isFinite(amount) ||
+            amount <= 0
+        ) {
+
             showToast(
                 "Montant invalide",
                 "Entre un montant supérieur à zéro."
             );
+
             return;
         }
 
-        if (!jpNumber) {
+
+        if (!phone) {
+
             showToast(
-                "Numéro JessiKaPay requis",
-                "Entre ton numéro JessiKaPay."
+                "Numéro requis",
+                "Entre le numéro qui recevra le retrait."
             );
+
             return;
         }
+
 
         try {
-            const data = await apiRequest(
-                "/withdrawals",
-                {
-                    method: "POST",
-                    body: JSON.stringify({
-                        amount,
-                        currency: state.user?.currency || "XAF",
-                        jp_number: jpNumber
-                    })
-                }
-            );
+
+            const data =
+                await apiRequest(
+                    "/withdrawals",
+                    {
+                        method: "POST",
+
+                        body:
+                            JSON.stringify({
+                                amount,
+                                jp_number: phone
+                            })
+                    }
+                );
+
 
             closeModal();
 
-            showToast(
-                "Retrait demandé",
-                data?.message ||
-                "Ta demande de retrait JessiKaPay est en attente de traitement."
-            );
-
             await loadWallet();
 
-            if (state.currentPage === "wallet") {
-                renderWallet();
+
+            showToast(
+                "Retrait créé",
+                data?.message ||
+                "La demande de retrait a été enregistrée."
+            );
+
+
+            if (
+                state.currentPage ===
+                "wallet"
+            ) {
+
+                await renderWallet();
             }
+
+
         } catch (error) {
+
             showToast(
                 "Retrait impossible",
                 error.message ||
-                "Impossible de créer la demande de retrait JessiKaPay."
+                "Impossible de créer la demande de retrait."
             );
         }
     }
+
 
     /* =====================================================
        SELL PAGE
@@ -4285,47 +4218,61 @@
 
 
                     <label>
-
-                        Pays
-
-                        <input
-                            id="sellCountry"
-                            type="text"
-                            placeholder="Ex : Congo"
-                            required
-                        >
-
+                        Pays ciblé
+                        <div class="selection-picker" data-picker="sellCountryPicker">
+                            <input type="hidden" id="sellCountry" value="">
+                            <button type="button" class="selection-trigger" data-picker-trigger="sellCountryPicker">
+                                <span data-picker-text="sellCountryPicker">Choisir un pays</span><span class="selection-chevron">⌄</span>
+                            </button>
+                            <div class="selection-panel hidden" data-picker-panel="sellCountryPicker">
+                                <div class="selection-panel-head"><div><span>PAYS</span><strong>Choisir un pays</strong></div><button type="button" class="selection-close" data-picker-close="sellCountryPicker">×</button></div>
+                                <div class="selection-grid">
+                                    <button type="button" data-picker-value="sellCountryPicker" data-value="Congo">🇨🇬 Congo</button>
+                                    <button type="button" data-picker-value="sellCountryPicker" data-value="RDC">🇨🇩 RDC</button>
+                                    <button type="button" data-picker-value="sellCountryPicker" data-value="Cameroun">🇨🇲 Cameroun</button>
+                                    <button type="button" data-picker-value="sellCountryPicker" data-value="Gabon">🇬🇦 Gabon</button>
+                                    <button type="button" data-picker-value="sellCountryPicker" data-value="Côte d'Ivoire">🇨🇮 Côte d'Ivoire</button>
+                                    <button type="button" data-picker-value="sellCountryPicker" data-value="Sénégal">🇸🇳 Sénégal</button>
+                                    <button type="button" data-picker-value="sellCountryPicker" data-value="Mali">🇲🇱 Mali</button>
+                                    <button type="button" data-picker-value="sellCountryPicker" data-value="Burkina Faso">🇧🇫 Burkina Faso</button>
+                                    <button type="button" data-picker-value="sellCountryPicker" data-value="Togo">🇹🇬 Togo</button>
+                                    <button type="button" data-picker-value="sellCountryPicker" data-value="Bénin">🇧🇯 Bénin</button>
+                                    <button type="button" data-picker-value="sellCountryPicker" data-value="Tchad">🇹🇩 Tchad</button>
+                                    <button type="button" data-picker-value="sellCountryPicker" data-value="Centrafrique">🇨🇫 Centrafrique</button>
+                                    <button type="button" data-picker-value="sellCountryPicker" data-value="Autre pays">🌍 Autre pays</button>
+                                </div>
+                            </div>
+                        </div>
                     </label>
 
 
                     <label>
-
                         Langue
-
-                        <input
-                            id="sellLanguage"
-                            type="text"
-                            placeholder="Ex : Français"
-                            value="Français"
-                            required
-                        >
-
+                        <div class="selection-picker" data-picker="sellLanguagePicker">
+                            <input type="hidden" id="sellLanguage" value="Français">
+                            <button type="button" class="selection-trigger selected" data-picker-trigger="sellLanguagePicker"><span data-picker-text="sellLanguagePicker">Français</span><span class="selection-chevron">⌄</span></button>
+                            <div class="selection-panel hidden" data-picker-panel="sellLanguagePicker">
+                                <div class="selection-panel-head"><div><span>LANGUE</span><strong>Choisir une langue</strong></div><button type="button" class="selection-close" data-picker-close="sellLanguagePicker">×</button></div>
+                                <div class="selection-list">
+                                    <button type="button" data-picker-value="sellLanguagePicker" data-value="Français">Français</button>
+                                    <button type="button" data-picker-value="sellLanguagePicker" data-value="English">English</button>
+                                    <button type="button" data-picker-value="sellLanguagePicker" data-value="Lingala">Lingala</button>
+                                    <button type="button" data-picker-value="sellLanguagePicker" data-value="Swahili">Swahili</button>
+                                    <button type="button" data-picker-value="sellLanguagePicker" data-value="Arabe">Arabe</button>
+                                    <button type="button" data-picker-value="sellLanguagePicker" data-value="Autre">Autre</button>
+                                </div>
+                            </div>
+                        </div>
                     </label>
 
 
-                    <label>
-
-                        Prix de vente
-
-                        <input
-                            id="sellPrice"
-                            type="number"
-                            min="1"
-                            step="1"
-                            placeholder="Ex : 50000"
-                            required
-                        >
-
+                    <label class="form-field price-field">
+                        <span>Prix de vente (XAF)</span>
+                        <div class="input-shell price-input-shell">
+                            <input id="sellPrice" type="number" min="1" step="1" inputmode="numeric" placeholder="Ex : 50000" autocomplete="off" required>
+                            <b>XAF</b>
+                        </div>
+                        <small class="field-hint">Entre directement le prix de ton canal avec le clavier.</small>
                     </label>
 
 
@@ -4401,6 +4348,7 @@
 
 
         setupCategoryPicker();
+        setupSelectionPickers();
 
         document
             .getElementById(
@@ -4496,6 +4444,39 @@
             ) {
                 closePicker();
             }
+        });
+    }
+
+
+    /* =====================================================
+       UNIFIED SELECTION PICKERS
+    ===================================================== */
+
+    function setupSelectionPickers() {
+        document.querySelectorAll('.selection-picker[data-picker]').forEach(picker => {
+            const id = picker.dataset.picker;
+            const trigger = picker.querySelector(`[data-picker-trigger="${id}"]`);
+            const panel = picker.querySelector(`[data-picker-panel="${id}"]`);
+            const input = picker.querySelector(`#${id.replace('Picker','')}`);
+            const text = picker.querySelector(`[data-picker-text="${id}"]`);
+            if (!trigger || !panel || !input || !text) return;
+
+            const close = () => { panel.classList.add('hidden'); trigger.setAttribute('aria-expanded','false'); };
+            trigger.addEventListener('click', () => {
+                const hidden = panel.classList.toggle('hidden');
+                trigger.setAttribute('aria-expanded', String(hidden));
+            });
+            picker.querySelector(`[data-picker-close="${id}"]`)?.addEventListener('click', close);
+            panel.querySelectorAll(`[data-picker-value="${id}"]`).forEach(option => {
+                option.addEventListener('click', () => {
+                    const value = option.dataset.value || '';
+                    input.value = value;
+                    text.textContent = option.textContent.trim();
+                    trigger.classList.add('selected');
+                    panel.querySelectorAll(`[data-picker-value="${id}"]`).forEach(item => item.classList.toggle('active', item === option));
+                    close();
+                });
+            });
         });
     }
 
@@ -6339,10 +6320,8 @@
             <div class="about-modal">
 
                 <div class="about-logo">
-                    <img
-                        src="logo.png"
-                        alt="NexMarket"
-                    >
+                    <img src="logo.png" alt="NexMarket" onerror="this.style.display='none';this.parentElement.classList.add('logo-fallback');">
+                    <span class="about-logo-fallback-text">N</span>
                 </div>
 
 
@@ -6387,172 +6366,61 @@
 
 
     /* =====================================================
-       FAQ — QUESTIONS FRÉQUENTES
-    ===================================================== */
-
-    function openFAQ() {
-
-        openModal(`
-            <div class="faq-modal">
-
-                <div class="modal-header-content">
-                    <div>
-                        <span class="section-kicker">
-                            NEXMARKET
-                        </span>
-
-                        <h2>
-                            Questions fréquentes
-                        </h2>
-
-                        <p>
-                            Les réponses aux questions les plus fréquentes.
-                        </p>
-                    </div>
-                </div>
-
-                <div class="faq-list">
-
-                    <details class="faq-item">
-                        <summary>Qu'est-ce que NexMarket ?</summary>
-                        <div class="faq-answer">
-                            NexMarket est une marketplace permettant d'acheter et de vendre des canaux Telegram.
-                        </div>
-                    </details>
-
-                    <details class="faq-item">
-                        <summary>Comment acheter un canal ?</summary>
-                        <div class="faq-answer">
-                            Choisis une annonce, consulte ses informations puis lance la transaction depuis sa fiche.
-                        </div>
-                    </details>
-
-                    <details class="faq-item">
-                        <summary>Comment vendre mon canal ?</summary>
-                        <div class="faq-answer">
-                            Va dans « Vendre », renseigne les informations de ton canal puis soumets ton annonce pour vérification.
-                        </div>
-                    </details>
-
-                    <details class="faq-item">
-                        <summary>Le paiement est-il sécurisé ?</summary>
-                        <div class="faq-answer">
-                            NexMarket utilise un système de transaction avec blocage des fonds pendant le processus de transfert du canal.
-                        </div>
-                    </details>
-
-                    <details class="faq-item">
-                        <summary>Quand le vendeur reçoit-il son argent ?</summary>
-                        <div class="faq-answer">
-                            Le paiement intervient après les étapes prévues par la transaction et la période de protection.
-                        </div>
-                    </details>
-
-                    <details class="faq-item">
-                        <summary>Quelle est la commission NexMarket ?</summary>
-                        <div class="faq-answer">
-                            La commission NexMarket est de 5 % du prix de vente.
-                        </div>
-                    </details>
-
-                    <details class="faq-item">
-                        <summary>Pourquoi le bot NexMarket doit-il être administrateur ?</summary>
-                        <div class="faq-answer">
-                            Cette autorisation permet à NexMarket de vérifier le canal et de sécuriser les étapes nécessaires à la transaction.
-                        </div>
-                    </details>
-
-                    <details class="faq-item">
-                        <summary>Qui peut vendre un canal ?</summary>
-                        <div class="faq-answer">
-                            Le vendeur doit être le propriétaire réel du canal et fournir les informations nécessaires à la vérification.
-                        </div>
-                    </details>
-
-                    <details class="faq-item">
-                        <summary>Que faire en cas de problème ?</summary>
-                        <div class="faq-answer">
-                            Utilise le support NexMarket afin qu'un administrateur puisse examiner la situation.
-                        </div>
-                    </details>
-
-                </div>
-            </div>
-        `);
-    }
-
-
-    /* =====================================================
        SUPPORT
     ===================================================== */
 
     function openSupport() {
 
         openModal(`
-            <div class="support-modal">
-
+            <div class="support-modal faq-modal">
                 <div class="modal-header-content">
-
                     <div>
-
-                        <span class="section-kicker">
-                            AIDE
-                        </span>
-
-                        <h2>
-                            Support NexMarket
-                        </h2>
-
+                        <span class="section-kicker">QUESTIONS</span>
+                        <h2>Questions fréquentes</h2>
                     </div>
-
                 </div>
 
+                <div class="faq-list">
+                    <details class="faq-item" open>
+                        <summary>Comment acheter un canal ?<span>+</span></summary>
+                        <p>Choisis une annonce, vérifie les informations du canal puis lance l'achat. Le paiement reste protégé pendant la transaction.</p>
+                    </details>
+                    <details class="faq-item">
+                        <summary>Comment vendre mon canal ?<span>+</span></summary>
+                        <p>Va dans Vendre, renseigne ton canal et les informations demandées. Tu dois être le propriétaire du canal et NexMarket doit pouvoir vérifier le canal.</p>
+                    </details>
+                    <details class="faq-item">
+                        <summary>Comment fonctionne le paiement ?<span>+</span></summary>
+                        <p>Les paiements de la marketplace passent par JessiKaPay. Les informations sensibles du vendeur ne sont pas affichées publiquement.</p>
+                    </details>
+                    <details class="faq-item">
+                        <summary>Comment déposer de l'argent ?<span>+</span></summary>
+                        <p>Depuis Wallet, choisis Déposer. Le paiement est effectué via la page sécurisée JessiKaPay.</p>
+                    </details>
+                    <details class="faq-item">
+                        <summary>Comment retirer mon solde ?<span>+</span></summary>
+                        <p>Depuis Wallet, choisis Retirer et indique ton numéro JessiKaPay. La demande est ensuite traitée selon son statut.</p>
+                    </details>
+                    <details class="faq-item">
+                        <summary>Que faire en cas de problème ?<span>+</span></summary>
+                        <p>Si ton problème concerne une annonce, un achat ou un retrait, contacte directement le support NexMarket.</p>
+                    </details>
+                </div>
 
-                <p>
-                    Pour toute question concernant
-                    une annonce, une transaction ou
-                    ton portefeuille, utilise le support
-                    NexMarket.
-                </p>
-
-
-                <button
-                    type="button"
-                    class="primary-action full-width"
-                    data-action="telegram-support"
-                >
+                <button type="button" class="primary-action full-width" data-action="telegram-support">
                     ${ICONS.message}
-
                     Contacter le support
                 </button>
-
             </div>
         `);
 
-
-        document
-            .querySelector(
-                '[data-action="telegram-support"]'
-            )
-            ?.addEventListener(
-                "click",
-                () => {
-
-                    if (tg) {
-
-                        tg.openTelegramLink(
-                            "https://t.me/Nexa_CG"
-                        );
-
-                    } else {
-
-                        window.open(
-                            "https://t.me/Nexa_CG",
-                            "_blank"
-                        );
-                    }
-                }
-            );
+        document.querySelector('[data-action="telegram-support"]')?.addEventListener('click', () => {
+            if (tg && typeof tg.openTelegramLink === 'function') {
+                tg.openTelegramLink('https://t.me/Nexa_CG');
+            } else {
+                window.open('https://t.me/Nexa_CG', '_blank');
+            }
+        });
     }
 
 
@@ -7257,7 +7125,7 @@
                 "click",
                 () => {
 
-                    openFAQ();
+                    openSupport();
                 }
             );
     }
