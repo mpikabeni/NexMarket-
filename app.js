@@ -3743,187 +3743,187 @@
        DEPOSIT
     ===================================================== */
 
-    function openWalletDeposit(
-        suggestedAmount = ""
-    ) {
+    function openWalletDeposit() {
 
         openModal(`
             <div class="modal-header-content">
-
                 <div>
-
                     <span class="section-kicker">
                         PORTEFEUILLE
                     </span>
-
                     <h2>
-                        Déposer de l'argent
+                        Déposer des fonds
                     </h2>
-
                 </div>
-
             </div>
 
+            <div class="payment-provider">
+                <div class="payment-provider-icon">
+                    ${ICONS.wallet}
+                </div>
+                <div>
+                    <strong>JessiKaPay</strong>
+                    <span>Paiement sécurisé</span>
+                </div>
+            </div>
 
-            <form
-                id="depositForm"
-                class="modal-form"
-            >
+            <form id="depositForm" class="modal-form">
 
                 <label>
                     Montant
-
                     <input
                         id="depositAmount"
                         type="number"
                         min="1"
                         step="1"
                         placeholder="Ex : 5000"
-                        value="${
-                            suggestedAmount ||
-                            ""
-                        }"
                         required
                     >
-
                 </label>
 
+                <label>
+                    Pays
+                    <select id="depositCountry" required>
+                        <option value="">Sélectionner un pays</option>
+                        <option value="CG">Congo</option>
+                        <option value="CD">RDC</option>
+                        <option value="CM">Cameroun</option>
+                        <option value="TD">Tchad</option>
+                        <option value="CI">Côte d'Ivoire</option>
+                        <option value="BF">Burkina Faso</option>
+                        <option value="ML">Mali</option>
+                        <option value="TG">Togo</option>
+                        <option value="SN">Sénégal</option>
+                        <option value="BJ">Bénin</option>
+                        <option value="CF">Centrafrique</option>
+                        <option value="GA">Gabon</option>
+                    </select>
+                </label>
+
+                <label>
+                    Numéro Mobile Money
+                    <input
+                        id="depositPhone"
+                        type="tel"
+                        placeholder="Ex : 06XXXXXXXX"
+                        autocomplete="tel"
+                        required
+                    >
+                </label>
 
                 <div class="payment-provider">
-
-                    <span>
-                        Moyen de paiement
-                    </span>
-
-                    <strong>
-                        Money Fusion
-                    </strong>
-
-                    <small>
-                        Le paiement sera effectué
-                        sur la page sécurisée
-                        Money Fusion.
-                    </small>
-
+                    <span>Moyen de paiement</span>
+                    <strong>JessiKaPay</strong>
+                    <small>Tu seras redirigé vers la page sécurisée JessiKaPay pour terminer le dépôt.</small>
                 </div>
 
-
-                <button
-                    type="submit"
-                    class="primary-action full-width"
-                >
+                <button type="submit" class="primary-action full-width">
                     ${ICONS.deposit}
-
-                    Continuer
+                    <span>Continuer avec JessiKaPay</span>
                 </button>
-
             </form>
         `);
 
-
         document
-            .getElementById(
-                "depositForm"
-            )
-            ?.addEventListener(
-                "submit",
-                handleDepositSubmit
-            );
+            .getElementById("depositForm")
+            ?.addEventListener("submit", handleDepositSubmit);
     }
 
 
-    async function handleDepositSubmit(
-        event
-    ) {
+    async function handleDepositSubmit(event) {
 
         event.preventDefault();
 
+        const amount = Number(
+            document.getElementById("depositAmount")?.value
+        );
+        const country = String(
+            document.getElementById("depositCountry")?.value || ""
+        ).trim().toUpperCase();
+        const phone = String(
+            document.getElementById("depositPhone")?.value || ""
+        ).trim();
 
-        const input =
-            document.getElementById(
-                "depositAmount"
-            );
-
-
-        const amount =
-            Number(
-                input?.value
-            );
-
-
-        if (
-            !Number.isFinite(amount) ||
-            amount <= 0
-        ) {
-
-            showToast(
-                "Montant invalide",
-                "Entre un montant supérieur à zéro."
-            );
-
+        if (!Number.isFinite(amount) || amount <= 0) {
+            showToast("Montant invalide", "Entre un montant supérieur à zéro.");
             return;
         }
 
+        if (!country) {
+            showToast("Pays requis", "Sélectionne ton pays.");
+            return;
+        }
+
+        if (!phone) {
+            showToast("Numéro requis", "Entre ton numéro Mobile Money.");
+            return;
+        }
+
+        const telegramUser = getTelegramUser() || {};
+        const telegramId =
+            state.user?.telegram_id ||
+            state.user?.telegramId ||
+            telegramUser.id;
+        const name = getDisplayName(state.user || telegramUser);
+        const reference = `NMX-DEP-${Date.now()}`;
+        const submitButton = event.target.querySelector('button[type="submit"]');
 
         try {
-
-            const data =
-                await apiRequest(
-                    "/wallet/deposit",
-                    {
-                        method: "POST",
-
-                        body:
-                            JSON.stringify({
-                                amount,
-                                currency:
-                                    state.user?.currency ||
-                                    "XAF"
-                            })
-                    }
-                );
-
-
-            const url =
-                data?.url ||
-                data?.payment_url ||
-                data?.redirect_url;
-
-
-            if (url) {
-
-                closeModal();
-
-                if (tg) {
-
-                    tg.openLink(
-                        url
-                    );
-
-                } else {
-
-                    window.location.href =
-                        url;
-                }
-
-                return;
+            if (submitButton) {
+                submitButton.disabled = true;
+                submitButton.classList.add("is-loading");
             }
 
+            if (!telegramId) {
+                throw new Error("Session Telegram introuvable. Ouvre NexMarket depuis Telegram.");
+            }
 
-            showToast(
-                "Dépôt créé",
-                data?.message ||
-                "Suis les instructions pour terminer le paiement."
+            const data = await apiRequest(
+                "/wallet/deposit",
+                {
+                    method: "POST",
+                    body: JSON.stringify({
+                        telegram_id: telegramId,
+                        name,
+                        country,
+                        phone,
+                        amount,
+                        reference
+                    })
+                }
             );
 
+            if (data?.payment_link) {
+                closeModal();
+                showToast("Dépôt créé", "Redirection vers JessiKaPay...");
+                if (tg && typeof tg.openLink === "function") {
+                    tg.openLink(data.payment_link);
+                } else {
+                    window.open(data.payment_link, "_blank");
+                }
+            } else {
+                showToast(
+                    "Dépôt créé",
+                    data?.message || "Ta demande de dépôt a été enregistrée."
+                );
+            }
+
+            await loadWallet();
+            if (state.currentPage === "wallet") {
+                await renderWallet();
+            }
 
         } catch (error) {
-
+            console.error("Dépôt JessiKaPay:", error);
             showToast(
                 "Dépôt impossible",
-                error.message ||
-                "Impossible de créer le paiement."
+                error.message || "Impossible de créer le dépôt JessiKaPay."
             );
+        } finally {
+            if (submitButton) {
+                submitButton.disabled = false;
+                submitButton.classList.remove("is-loading");
+            }
         }
     }
 
@@ -3935,30 +3935,29 @@
 
         openModal(`
             <div class="modal-header-content">
-
                 <div>
-
                     <span class="section-kicker">
                         PORTEFEUILLE
                     </span>
-
                     <h2>
-                        Retirer de l'argent
+                        Retirer des fonds
                     </h2>
-
                 </div>
-
             </div>
 
+            <div class="payment-provider">
+                <div class="payment-provider-icon">
+                    ${ICONS.wallet}
+                </div>
+                <div>
+                    <strong>JessiKaPay</strong>
+                    <span>Retrait sécurisé</span>
+                </div>
+            </div>
 
-            <form
-                id="withdrawForm"
-                class="modal-form"
-            >
-
+            <form id="withdrawForm" class="modal-form">
                 <label>
                     Montant
-
                     <input
                         id="withdrawAmount"
                         type="number"
@@ -3967,218 +3966,104 @@
                         placeholder="Ex : 5000"
                         required
                     >
-
                 </label>
 
-
                 <label>
-                    Pays
-
+                    Numéro JessiKaPay
                     <input
-                        id="withdrawCountry"
+                        id="withdrawJpNumber"
                         type="text"
-                        value="CG"
-                        placeholder="Ex : CG"
-                        maxlength="2"
+                        placeholder="Ex : JP12345678"
+                        autocomplete="off"
                         required
                     >
-
                 </label>
-
-
-                <label>
-                    Numéro de téléphone
-
-                    <input
-                        id="withdrawPhone"
-                        type="tel"
-                        placeholder="Ex : 06XXXXXXXX"
-                        autocomplete="tel"
-                        required
-                    >
-
-                </label>
-
 
                 <div class="payment-provider">
-
-                    <span>
-                        Service de retrait
-                    </span>
-
-                    <strong>
-                        Money Fusion
-                    </strong>
-
-                    <small>
-                        Vérifie ton numéro avant
-                        de confirmer le retrait.
-                    </small>
-
+                    <span>Service de retrait</span>
+                    <strong>JessiKaPay</strong>
+                    <small>Le retrait sera envoyé vers ton numéro JessiKaPay.</small>
                 </div>
 
-
-                <button
-                    type="submit"
-                    class="primary-action full-width"
-                >
+                <button type="submit" class="primary-action full-width">
                     ${ICONS.withdraw}
-
-                    Confirmer le retrait
+                    <span>Confirmer le retrait</span>
                 </button>
-
             </form>
         `);
 
-
         document
-            .getElementById(
-                "withdrawForm"
-            )
-            ?.addEventListener(
-                "submit",
-                handleWithdrawSubmit
-            );
+            .getElementById("withdrawForm")
+            ?.addEventListener("submit", handleWithdrawSubmit);
     }
 
 
-    async function handleWithdrawSubmit(
-        event
-    ) {
+    async function handleWithdrawSubmit(event) {
 
         event.preventDefault();
 
+        const amount = Number(
+            document.getElementById("withdrawAmount")?.value
+        );
+        const jpNumber = String(
+            document.getElementById("withdrawJpNumber")?.value || ""
+        ).trim();
 
-        const amountInput =
-            document.getElementById(
-                "withdrawAmount"
-            );
-
-
-        const countryInput =
-            document.getElementById(
-                "withdrawCountry"
-            );
-
-
-        const phoneInput =
-            document.getElementById(
-                "withdrawPhone"
-            );
-
-
-        const amount =
-            Number(
-                amountInput?.value
-            );
-
-
-        const country =
-            countryInput?.value
-                ?.trim()
-                .toUpperCase();
-
-
-        const phone =
-            phoneInput?.value
-                ?.trim();
-
-
-        if (
-            !Number.isFinite(amount) ||
-            amount <= 0
-        ) {
-
-            showToast(
-                "Montant invalide",
-                "Entre un montant supérieur à zéro."
-            );
-
+        if (!Number.isFinite(amount) || amount <= 0) {
+            showToast("Montant invalide", "Entre un montant supérieur à zéro.");
             return;
         }
 
-
-        if (
-            !country ||
-            country.length !== 2
-        ) {
-
-            showToast(
-                "Pays invalide",
-                "Utilise le code pays à deux lettres."
-            );
-
+        if (!jpNumber) {
+            showToast("Numéro JessiKaPay requis", "Entre ton numéro JessiKaPay.");
             return;
         }
 
-
-        if (!phone) {
-
-            showToast(
-                "Numéro requis",
-                "Entre le numéro qui recevra le retrait."
-            );
-
-            return;
-        }
-
+        const submitButton = event.target.querySelector('button[type="submit"]');
 
         try {
+            if (submitButton) {
+                submitButton.disabled = true;
+                submitButton.classList.add("is-loading");
+            }
 
-            const data =
-                await apiRequest(
-                    "/wallet/withdraw",
-                    {
-                        method: "POST",
-
-                        body:
-                            JSON.stringify({
-                                amount,
-
-                                currency:
-                                    state.user?.currency ||
-                                    "XAF",
-
-                                country,
-
-                                phone_number:
-                                    phone
-                            })
-                    }
-                );
-
-
-            closeModal();
-
-            await loadWallet();
-
-
-            showToast(
-                "Retrait créé",
-                data?.message ||
-                "La demande de retrait a été enregistrée."
+            const data = await apiRequest(
+                "/withdrawals",
+                {
+                    method: "POST",
+                    body: JSON.stringify({
+                        amount,
+                        jp_number: jpNumber
+                    })
+                }
             );
 
+            closeModal();
+            showToast(
+                "Retrait demandé",
+                data?.message ||
+                "Ta demande de retrait JessiKaPay est en cours de traitement."
+            );
 
-            if (
-                state.currentPage ===
-                "wallet"
-            ) {
-
+            await loadWallet();
+            if (state.currentPage === "wallet") {
                 await renderWallet();
             }
 
-
         } catch (error) {
-
+            console.error("Retrait JessiKaPay:", error);
             showToast(
                 "Retrait impossible",
                 error.message ||
-                "Impossible de créer la demande de retrait."
+                "Impossible de demander le retrait JessiKaPay."
             );
+        } finally {
+            if (submitButton) {
+                submitButton.disabled = false;
+                submitButton.classList.remove("is-loading");
+            }
         }
     }
-
 
     /* =====================================================
        SELL PAGE
