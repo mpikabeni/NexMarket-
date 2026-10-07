@@ -226,10 +226,31 @@
         const initData =
             getTelegramInitData();
 
+        /*
+         * Toujours transmettre les données Telegram au backend.
+         * Le X-Header est utilisé par NexMarket et l'Authorization
+         * permet aussi de rester compatible avec les routes qui
+         * attendent le format Telegram <initData>.
+         */
         if (initData) {
             headers[
                 "X-Telegram-Init-Data"
             ] = initData;
+
+            headers[
+                "Authorization"
+            ] = `Telegram ${initData}`;
+        }
+
+        const sessionToken =
+            sessionStorage.getItem(
+                "nexmarket_admin_token"
+            );
+
+        if (sessionToken) {
+            headers[
+                "X-NexMarket-Admin-Token"
+            ] = sessionToken;
         }
 
         try {
@@ -706,6 +727,8 @@
         DOM.modalBody.innerHTML =
             content;
 
+        clearModalError();
+
         DOM.modalContainer.classList.remove(
             "hidden"
         );
@@ -739,6 +762,62 @@
 
         document.body.style.overflow =
             "";
+    }
+
+
+    function showModalError(
+        title,
+        message
+    ) {
+
+        const errorBox =
+            document.getElementById(
+                "modalError"
+            );
+
+        if (!errorBox) {
+            showToast(title, message);
+            return;
+        }
+
+        const strong =
+            errorBox.querySelector(
+                "strong"
+            );
+
+        const span =
+            errorBox.querySelector(
+                "div > span"
+            );
+
+        if (strong) {
+            strong.textContent =
+                title || "Erreur";
+        }
+
+        if (span) {
+            span.textContent =
+                message || "Une erreur est survenue.";
+        }
+
+        errorBox.classList.remove(
+            "hidden"
+        );
+    }
+
+
+    function clearModalError() {
+
+        const errorBox =
+            document.getElementById(
+                "modalError"
+            );
+
+        if (errorBox) {
+            errorBox.classList.add(
+                "hidden"
+            );
+        }
     }
 
 
@@ -1889,6 +1968,21 @@
 
     async function loadCurrentUser() {
 
+        const telegramUser =
+            getTelegramUser() || {};
+
+        if (!telegramUser.id) {
+            state.user = null;
+            return null;
+        }
+
+        let backendUser = {};
+        let meError = null;
+
+        /*
+         * 1. On essaie d'abord /users/me.
+         * Cela conserve le fonctionnement actuel du backend.
+         */
         try {
 
             const data =
@@ -1896,60 +1990,124 @@
                     "/users/me"
                 );
 
-            const telegramUser = getTelegramUser() || {};
-            const backendUser = data?.user || data || {};
-
-            state.user = {
-                ...telegramUser,
-                ...backendUser,
-                photo_url:
-                    telegramUser.photo_url ||
-                    backendUser.photo_url ||
-                    ""
-            };
-
-            updateTelegramProfile();
-
-            return state.user;
+            backendUser =
+                data?.user ||
+                data ||
+                {};
 
         } catch (error) {
 
+            meError = error;
+
             console.warn(
-                "Utilisateur:",
+                "Utilisateur /users/me:",
                 error.message
             );
-
-            const telegramUser =
-                getTelegramUser();
-
-            if (telegramUser) {
-
-                state.user = {
-                    telegram_id:
-                        telegramUser.id,
-
-                    username:
-                        telegramUser.username,
-
-                    first_name:
-                        telegramUser.first_name,
-
-                    last_name:
-                        telegramUser.last_name,
-
-                    photo_url:
-                        telegramUser.photo_url,
-
-                    currency: "XAF",
-
-                    language: "fr"
-                };
-
-                updateTelegramProfile();
-            }
-
-            return state.user;
         }
+
+        /*
+         * 2. Si le backend n'a pas fourni le NEXA ID,
+         * on authentifie directement la Mini App avec
+         * Telegram initData.
+         *
+         * Le backend peut retourner le user soit dans
+         * data.user, soit directement dans data.
+         */
+        if (!backendUser.nexa_id) {
+
+            const initData =
+                getTelegramInitData();
+
+            if (initData) {
+
+                try {
+
+                    const authData =
+                        await apiRequest(
+                            "/auth/telegram",
+                            {
+                                method: "POST",
+                                body:
+                                    JSON.stringify({
+                                        init_data:
+                                            initData
+                                    })
+                            }
+                        );
+
+                    const authUser =
+                        authData?.user ||
+                        {};
+
+                    backendUser = {
+                        ...backendUser,
+                        ...authUser,
+                        nexa_id:
+                            authUser.nexa_id ||
+                            authData?.nexa_id ||
+                            authData?.user?.nexa_id ||
+                            backendUser.nexa_id ||
+                            ""
+                    };
+
+                    /*
+                     * Certaines versions du backend renvoient
+                     * un token de session. On le conserve pour
+                     * les requêtes suivantes.
+                     */
+                    if (authData?.session_token) {
+                        sessionStorage.setItem(
+                            "nexmarket_session_token",
+                            authData.session_token
+                        );
+                    }
+
+                } catch (authError) {
+
+                    console.warn(
+                        "Authentification Telegram:",
+                        authError.message
+                    );
+                }
+            }
+        }
+
+        /*
+         * 3. Une seule identité utilisateur est construite.
+         * Le NEXA ID vient exclusivement du backend.
+         * Le frontend n'en génère jamais.
+         */
+        state.user = {
+            ...telegramUser,
+            ...backendUser,
+            telegram_id:
+                backendUser.telegram_id ||
+                telegramUser.id,
+            nexa_id:
+                backendUser.nexa_id ||
+                "",
+            photo_url:
+                telegramUser.photo_url ||
+                backendUser.photo_url ||
+                "",
+            currency:
+                backendUser.currency ||
+                backendUser.preferred_currency ||
+                "XAF",
+            language:
+                backendUser.language ||
+                "fr"
+        };
+
+        updateTelegramProfile();
+
+        if (!state.user.nexa_id && meError) {
+            console.warn(
+                "NEXA ID indisponible: le backend n'a fourni aucun nexa_id."
+            );
+        }
+
+        return state.user;
     }
 
 
@@ -3762,82 +3920,130 @@
     ) {
 
         openModal(`
-            <div class="modal-header-content">
+            <div class="wallet-modal">
 
-                <div>
+                <div class="modal-header-content modal-header-spaced">
 
-                    <span class="section-kicker">
-                        PORTEFEUILLE
-                    </span>
+                    <div class="modal-title-wrap">
 
-                    <h2>
-                        Déposer de l'argent
-                    </h2>
+                        <span class="modal-icon-badge deposit-badge">
+                            ${ICONS.deposit}
+                        </span>
+
+                        <div>
+                            <span class="section-kicker">
+                                PORTEFEUILLE
+                            </span>
+
+                            <h2>
+                                Déposer de l'argent
+                            </h2>
+
+                            <p class="modal-subtitle">
+                                Recharge ton portefeuille NexMarket
+                                de manière sécurisée.
+                            </p>
+                        </div>
+
+                    </div>
 
                 </div>
+
+                <form
+                    id="depositForm"
+                    class="modal-form wallet-modal-form"
+                >
+
+                    <div class="modal-field">
+
+                        <label
+                            for="depositAmount"
+                            class="modal-field-label"
+                        >
+                            Montant
+                        </label>
+
+                        <div class="amount-input-wrap">
+
+                            <input
+                                id="depositAmount"
+                                type="number"
+                                min="1"
+                                step="1"
+                                inputmode="numeric"
+                                placeholder="0"
+                                value="${suggestedAmount || ""}"
+                                required
+                            >
+
+                            <span>
+                                ${escapeHTML(
+                                    state.wallet?.currency ||
+                                    state.user?.currency ||
+                                    "XAF"
+                                )}
+                            </span>
+
+                        </div>
+
+                    </div>
+
+                    <div class="payment-provider wallet-provider">
+
+                        <span class="provider-icon">
+                            ${ICONS.wallet}
+                        </span>
+
+                        <div class="provider-copy">
+
+                            <span class="provider-label">
+                                Moyen de paiement
+                            </span>
+
+                            <strong>
+                                JessiKaPay
+                            </strong>
+
+                            <small>
+                                Tu seras redirigé vers la
+                                page de paiement sécurisée.
+                            </small>
+
+                        </div>
+
+                        <span class="provider-status">
+                            Sécurisé
+                        </span>
+
+                    </div>
+
+                    <div
+                        id="modalError"
+                        class="modal-inline-error hidden"
+                        role="alert"
+                    >
+                        <span class="modal-error-dot"></span>
+                        <div>
+                            <strong></strong>
+                            <span></span>
+                        </div>
+                    </div>
+
+                    <button
+                        type="submit"
+                        class="primary-action full-width modal-submit"
+                    >
+                        ${ICONS.deposit}
+                        Continuer
+                    </button>
+
+                </form>
 
             </div>
-
-
-            <form
-                id="depositForm"
-                class="modal-form"
-            >
-
-                <label>
-                    Montant
-
-                    <input
-                        id="depositAmount"
-                        type="number"
-                        min="1"
-                        step="1"
-                        placeholder="Ex : 5000"
-                        value="${
-                            suggestedAmount ||
-                            ""
-                        }"
-                        required
-                    >
-
-                </label>
-
-
-                <div class="payment-provider">
-
-                    <span>
-                        Moyen de paiement
-                    </span>
-
-                    <strong>
-                        JessiKaPay
-                    </strong>
-
-                    <small>
-                        Redirection vers la page de paiement
-                        sécurisée JessiKaPay.
-                    </small>
-
-                </div>
-
-
-                <button
-                    type="submit"
-                    class="primary-action full-width"
-                >
-                    ${ICONS.deposit}
-
-                    Continuer
-                </button>
-
-            </form>
         `);
 
-
         document
-            .getElementById(
-                "depositForm"
-            )
+            .getElementById("depositForm")
             ?.addEventListener(
                 "submit",
                 handleDepositSubmit
@@ -3869,7 +4075,7 @@
             amount <= 0
         ) {
 
-            showToast(
+            showModalError(
                 "Montant invalide",
                 "Entre un montant supérieur à zéro."
             );
@@ -3932,7 +4138,7 @@
 
         } catch (error) {
 
-            showToast(
+            showModalError(
                 "Dépôt impossible",
                 error.message ||
                 "Impossible de créer le paiement."
@@ -3947,94 +4153,171 @@
     function openWalletWithdraw() {
 
         openModal(`
-            <div class="modal-header-content">
+            <div class="wallet-modal">
 
-                <div>
+                <div class="modal-header-content modal-header-spaced">
 
-                    <span class="section-kicker">
-                        PORTEFEUILLE
-                    </span>
+                    <div class="modal-title-wrap">
 
-                    <h2>
-                        Retirer de l'argent
-                    </h2>
+                        <span class="modal-icon-badge withdraw-badge">
+                            ${ICONS.withdraw}
+                        </span>
+
+                        <div>
+                            <span class="section-kicker">
+                                PORTEFEUILLE
+                            </span>
+
+                            <h2>
+                                Retirer de l'argent
+                            </h2>
+
+                            <p class="modal-subtitle">
+                                Retire ton solde vers ton
+                                compte JessiKaPay.
+                            </p>
+                        </div>
+
+                    </div>
 
                 </div>
+
+                <form
+                    id="withdrawForm"
+                    class="modal-form wallet-modal-form"
+                >
+
+                    <div class="modal-field">
+
+                        <label
+                            for="withdrawAmount"
+                            class="modal-field-label"
+                        >
+                            Montant
+                        </label>
+
+                        <div class="amount-input-wrap">
+
+                            <input
+                                id="withdrawAmount"
+                                type="number"
+                                min="1"
+                                step="1"
+                                inputmode="numeric"
+                                placeholder="0"
+                                required
+                            >
+
+                            <span>
+                                ${escapeHTML(
+                                    state.wallet?.currency ||
+                                    state.user?.currency ||
+                                    "XAF"
+                                )}
+                            </span>
+
+                        </div>
+
+                    </div>
+
+                    <div class="modal-field">
+
+                        <label
+                            for="withdrawCountry"
+                            class="modal-field-label"
+                        >
+                            Pays
+                        </label>
+
+                        <input
+                            id="withdrawCountry"
+                            class="modal-standard-input"
+                            type="text"
+                            value="CG"
+                            placeholder="Ex : CG"
+                            maxlength="2"
+                            autocomplete="country"
+                            required
+                        >
+
+                    </div>
+
+                    <div class="modal-field">
+
+                        <label
+                            for="withdrawPhone"
+                            class="modal-field-label"
+                        >
+                            Numéro JessiKaPay
+                        </label>
+
+                        <input
+                            id="withdrawPhone"
+                            class="modal-standard-input"
+                            type="text"
+                            placeholder="Ex : JP12345678"
+                            autocomplete="off"
+                            required
+                        >
+
+                    </div>
+
+                    <div class="payment-provider wallet-provider">
+
+                        <span class="provider-icon">
+                            ${ICONS.withdraw}
+                        </span>
+
+                        <div class="provider-copy">
+
+                            <span class="provider-label">
+                                Service de retrait
+                            </span>
+
+                            <strong>
+                                JessiKaPay
+                            </strong>
+
+                            <small>
+                                Les fonds seront envoyés vers
+                                le numéro indiqué ci-dessus.
+                            </small>
+
+                        </div>
+
+                        <span class="provider-status">
+                            Sécurisé
+                        </span>
+
+                    </div>
+
+                    <div
+                        id="modalError"
+                        class="modal-inline-error hidden"
+                        role="alert"
+                    >
+                        <span class="modal-error-dot"></span>
+                        <div>
+                            <strong></strong>
+                            <span></span>
+                        </div>
+                    </div>
+
+                    <button
+                        type="submit"
+                        class="primary-action full-width modal-submit"
+                    >
+                        ${ICONS.withdraw}
+                        Confirmer le retrait
+                    </button>
+
+                </form>
 
             </div>
-
-
-            <form
-                id="withdrawForm"
-                class="modal-form"
-            >
-
-                <label>
-                    Montant
-
-                    <input
-                        id="withdrawAmount"
-                        type="number"
-                        min="1"
-                        step="1"
-                        placeholder="Ex : 5000"
-                        required
-                    >
-
-                </label>
-
-
-                <label>
-                    Pays
-
-                    <input
-                        id="withdrawCountry"
-                        type="text"
-                        value="CG"
-                        placeholder="Ex : CG"
-                        maxlength="2"
-                        required
-                    >
-
-                </label>
-
-
-
-                <div class="payment-provider">
-
-                    <span>
-                        Service de retrait
-                    </span>
-
-                    <strong>
-                        JessiKaPay
-                    </strong>
-
-                    <small>
-                        Les fonds seront envoyés vers
-                        ton numéro JessiKaPay.
-                    </small>
-
-                </div>
-
-
-                <button
-                    type="submit"
-                    class="primary-action full-width"
-                >
-                    ${ICONS.withdraw}
-
-                    Confirmer le retrait
-                </button>
-
-            </form>
         `);
 
-
         document
-            .getElementById(
-                "withdrawForm"
-            )
+            .getElementById("withdrawForm")
             ?.addEventListener(
                 "submit",
                 handleWithdrawSubmit
@@ -4072,17 +4355,12 @@
                 ?.trim();
 
 
-        const phone =
-            phoneInput?.value
-                ?.trim();
-
-
         if (
             !Number.isFinite(amount) ||
             amount <= 0
         ) {
 
-            showToast(
+            showModalError(
                 "Montant invalide",
                 "Entre un montant supérieur à zéro."
             );
@@ -4093,7 +4371,7 @@
 
         if (!jpNumber) {
 
-            showToast(
+            showModalError(
                 "Numéro JessiKaPay requis",
                 "Entre ton numéro JessiKaPay (JP...)."
             );
@@ -4148,7 +4426,7 @@
 
         } catch (error) {
 
-            showToast(
+            showModalError(
                 "Retrait impossible",
                 error.message ||
                 "Impossible de créer la demande de retrait."
@@ -6658,47 +6936,88 @@
         openModal(`
             <div class="admin-login">
 
-                <div class="modal-header-content">
+                <div class="modal-header-content modal-header-spaced">
 
-                    <div>
+                    <div class="modal-title-wrap">
 
-                        <span class="section-kicker">
-                            NEXMARKET
+                        <span class="modal-icon-badge admin-badge">
+                            ${ICONS.lock}
                         </span>
 
-                        <h2>
-                            Administration
-                        </h2>
+                        <div>
+                            <span class="section-kicker">
+                                NEXMARKET
+                            </span>
+
+                            <h2>
+                                Administration
+                            </h2>
+
+                            <p class="modal-subtitle">
+                                Accède au panneau de gestion
+                                sécurisé de NexMarket.
+                            </p>
+                        </div>
 
                     </div>
 
                 </div>
 
-
                 <form
                     id="adminLoginForm"
-                    class="modal-form"
+                    class="modal-form admin-modal-form"
                 >
 
-                    <label>
+                    <div class="modal-field">
 
-                        Code administrateur
-
-                        <input
-                            id="adminCode"
-                            type="password"
-                            autocomplete="off"
-                            required
+                        <label
+                            for="adminCode"
+                            class="modal-field-label"
                         >
+                            Code administrateur
+                        </label>
 
-                    </label>
+                        <div class="secure-input-wrap">
 
+                            <span>
+                                ${ICONS.lock}
+                            </span>
+
+                            <input
+                                id="adminCode"
+                                type="password"
+                                autocomplete="off"
+                                placeholder="Entrer le code administrateur"
+                                required
+                            >
+
+                        </div>
+
+                        <small class="field-hint">
+                            L'accès est réservé aux administrateurs
+                            NexMarket.
+                        </small>
+
+                    </div>
+
+                    <div
+                        id="modalError"
+                        class="modal-inline-error hidden"
+                        role="alert"
+                    >
+                        <span class="modal-error-dot"></span>
+                        <div>
+                            <strong></strong>
+                            <span></span>
+                        </div>
+                    </div>
 
                     <button
                         type="submit"
-                        class="primary-action full-width"
+                        class="primary-action full-width modal-submit"
                     >
-                        Accéder
+                        ${ICONS.lock}
+                        Accéder au panneau
                     </button>
 
                 </form>
@@ -6706,11 +7025,8 @@
             </div>
         `);
 
-
         document
-            .getElementById(
-                "adminLoginForm"
-            )
+            .getElementById("adminLoginForm")
             ?.addEventListener(
                 "submit",
                 handleAdminLogin
@@ -6734,6 +7050,10 @@
 
 
         if (!code) {
+            showModalError(
+                "Code requis",
+                "Entre le code administrateur pour continuer."
+            );
             return;
         }
 
@@ -6777,7 +7097,7 @@
 
         } catch (error) {
 
-            showToast(
+            showModalError(
                 "Accès refusé",
                 error.message ||
                 "Code administrateur incorrect."
