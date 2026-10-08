@@ -242,15 +242,36 @@
             ] = `Telegram ${initData}`;
         }
 
+        /*
+         * Session utilisateur NexMarket : le backend attend
+         * un JWT sous la forme Bearer <token> pour les routes
+         * protégées (wallet, retrait, lookup JP, etc.).
+         */
         const sessionToken =
             sessionStorage.getItem(
-                "nexmarket_admin_token"
+                "nexmarket_session_token"
             );
 
         if (sessionToken) {
             headers[
+                "Authorization"
+            ] = `Bearer ${sessionToken}`;
+        } else if (initData) {
+            /* Fallback uniquement avant authentification. */
+            headers[
+                "Authorization"
+            ] = `Telegram ${initData}`;
+        }
+
+        const adminToken =
+            sessionStorage.getItem(
+                "nexmarket_admin_token"
+            );
+
+        if (adminToken) {
+            headers[
                 "X-NexMarket-Admin-Token"
-            ] = sessionToken;
+            ] = adminToken;
         }
 
         try {
@@ -1347,6 +1368,79 @@
        PAGE BUY
     ===================================================== */
 
+    /* =====================================================
+       CATEGORY BAR
+    ===================================================== */
+
+    const MARKET_CATEGORIES = [
+        "News",
+        "Sport",
+        "Entertainment",
+        "Games",
+        "Education",
+        "Business",
+        "Tech",
+        "Commerce",
+        "Music",
+        "Creation",
+        "Community",
+        "Other"
+    ];
+
+
+    function renderCategoryBar() {
+
+        const categories = [
+            "all",
+            ...MARKET_CATEGORIES
+        ];
+
+        return `
+            <div class="category-bar-wrap">
+
+                <div class="category-bar-header">
+                    <span class="section-kicker">
+                        CATÉGORIES
+                    </span>
+
+                    <span class="category-bar-hint">
+                        Glisse pour voir plus
+                    </span>
+                </div>
+
+                <div
+                    class="category-bar"
+                    role="tablist"
+                    aria-label="Catégories de canaux"
+                >
+                    ${categories.map(category => {
+                        const active =
+                            state.selectedCategory === category;
+
+                        const label =
+                            category === "all"
+                                ? "Tous"
+                                : category;
+
+                        return `
+                            <button
+                                class="category-bar-item ${active ? "active" : ""}"
+                                type="button"
+                                data-category-select="${escapeHTML(category)}"
+                                aria-selected="${active ? "true" : "false"}"
+                                role="tab"
+                            >
+                                ${escapeHTML(label)}
+                            </button>
+                        `;
+                    }).join("")}
+                </div>
+
+            </div>
+        `;
+    }
+
+
     async function renderBuy() {
 
         state.currentPage = "buy";
@@ -1402,6 +1496,9 @@
                     >
 
                 </div>
+
+
+                ${renderCategoryBar()}
 
 
                 <div class="filter-row">
@@ -1963,6 +2060,81 @@
 
 
     /* =====================================================
+       AUTHENTIFICATION TELEGRAM
+    ===================================================== */
+
+    async function authenticateTelegram() {
+
+        const initData =
+            getTelegramInitData();
+
+        if (!initData) {
+            throw new Error(
+                "NexMarket doit être ouvert depuis Telegram."
+            );
+        }
+
+        let result = null;
+        let lastError = null;
+
+        /*
+         * Le backend NexMarket actuel utilise /auth.
+         * /auth/telegram reste un fallback pour les anciennes
+         * versions déjà déployées.
+         */
+        for (const endpoint of [
+            "/auth",
+            "/auth/telegram"
+        ]) {
+            try {
+                result = await apiRequest(
+                    endpoint,
+                    {
+                        method: "POST",
+                        body: JSON.stringify({
+                            init_data: initData
+                        })
+                    }
+                );
+                break;
+            } catch (error) {
+                lastError = error;
+
+                /* On tente l'ancien chemin uniquement si nécessaire. */
+                if (!/404|Not Found/i.test(error.message || "")) {
+                    throw error;
+                }
+            }
+        }
+
+        if (!result) {
+            throw lastError ||
+                new Error("Authentification NexMarket impossible.");
+        }
+
+        const sessionToken =
+            result?.session_token ||
+            result?.access_token ||
+            result?.token ||
+            result?.jwt ||
+            "";
+
+        if (!sessionToken) {
+            throw new Error(
+                "Le backend n'a pas fourni de jeton de session."
+            );
+        }
+
+        sessionStorage.setItem(
+            "nexmarket_session_token",
+            sessionToken
+        );
+
+        return result;
+    }
+
+
+    /* =====================================================
        LOAD USER
     ===================================================== */
 
@@ -1977,14 +2149,24 @@
         }
 
         let backendUser = {};
-        let meError = null;
 
         /*
-         * 1. On essaie d'abord /users/me.
-         * Cela conserve le fonctionnement actuel du backend.
+         * Si aucune session utilisateur n'existe encore,
+         * on authentifie la Mini App avec Telegram initData.
          */
-        try {
+        if (!sessionStorage.getItem("nexmarket_session_token")) {
+            try {
+                await authenticateTelegram();
+            } catch (error) {
+                console.warn(
+                    "Authentification Telegram:",
+                    error.message
+                );
+            }
+        }
 
+        /* Récupération du compte avec le JWT Bearer. */
+        try {
             const data =
                 await apiRequest(
                     "/users/me"
@@ -1996,87 +2178,40 @@
                 {};
 
         } catch (error) {
-
-            meError = error;
-
             console.warn(
                 "Utilisateur /users/me:",
                 error.message
             );
-        }
 
-        /*
-         * 2. Si le backend n'a pas fourni le NEXA ID,
-         * on authentifie directement la Mini App avec
-         * Telegram initData.
-         *
-         * Le backend peut retourner le user soit dans
-         * data.user, soit directement dans data.
-         */
-        if (!backendUser.nexa_id) {
+            /*
+             * Si la session précédente est expirée, on la recrée
+             * une fois avec Telegram puis on réessaie /users/me.
+             */
+            sessionStorage.removeItem(
+                "nexmarket_session_token"
+            );
 
-            const initData =
-                getTelegramInitData();
+            try {
+                await authenticateTelegram();
 
-            if (initData) {
-
-                try {
-
-                    const authData =
-                        await apiRequest(
-                            "/auth/telegram",
-                            {
-                                method: "POST",
-                                body:
-                                    JSON.stringify({
-                                        init_data:
-                                            initData
-                                    })
-                            }
-                        );
-
-                    const authUser =
-                        authData?.user ||
-                        {};
-
-                    backendUser = {
-                        ...backendUser,
-                        ...authUser,
-                        nexa_id:
-                            authUser.nexa_id ||
-                            authData?.nexa_id ||
-                            authData?.user?.nexa_id ||
-                            backendUser.nexa_id ||
-                            ""
-                    };
-
-                    /*
-                     * Certaines versions du backend renvoient
-                     * un token de session. On le conserve pour
-                     * les requêtes suivantes.
-                     */
-                    if (authData?.session_token) {
-                        sessionStorage.setItem(
-                            "nexmarket_session_token",
-                            authData.session_token
-                        );
-                    }
-
-                } catch (authError) {
-
-                    console.warn(
-                        "Authentification Telegram:",
-                        authError.message
+                const data =
+                    await apiRequest(
+                        "/users/me"
                     );
-                }
+
+                backendUser =
+                    data?.user ||
+                    data ||
+                    {};
+
+            } catch (authError) {
+                console.warn(
+                    "Réauthentification NexMarket:",
+                    authError.message
+                );
             }
         }
 
-        /*
-         * 3. Une seule identité utilisateur est construite.
-         * Le NEXA ID vient exclusivement du backend.
-         * Le frontend n'en génère jamais.
-         */
         state.user = {
             ...telegramUser,
             ...backendUser,
@@ -2100,12 +2235,6 @@
         };
 
         updateTelegramProfile();
-
-        if (!state.user.nexa_id && meError) {
-            console.warn(
-                "NEXA ID indisponible: le backend n'a fourni aucun nexa_id."
-            );
-        }
 
         return state.user;
     }
@@ -4057,94 +4186,151 @@
 
         event.preventDefault();
 
-
         const input =
             document.getElementById(
                 "depositAmount"
             );
-
 
         const amount =
             Number(
                 input?.value
             );
 
-
         if (
             !Number.isFinite(amount) ||
             amount <= 0
         ) {
-
             showModalError(
                 "Montant invalide",
                 "Entre un montant supérieur à zéro."
             );
-
             return;
         }
 
+        const submitButton =
+            document.querySelector(
+                "#depositForm .modal-submit"
+            );
+
+        if (submitButton) {
+            submitButton.disabled = true;
+            submitButton.dataset.originalText =
+                submitButton.textContent.trim();
+            submitButton.textContent =
+                "Création du paiement...";
+        }
 
         try {
+            /*
+             * Le dépôt est une route protégée.
+             * On s'assure donc que la Mini App possède
+             * bien son JWT Bearer avant d'envoyer la demande.
+             */
+            if (
+                !sessionStorage.getItem(
+                    "nexmarket_session_token"
+                )
+            ) {
+                await authenticateTelegram();
+            }
 
             const data =
                 await apiRequest(
                     "/wallet/deposit",
                     {
                         method: "POST",
-
                         body:
                             JSON.stringify({
                                 amount,
                                 currency:
+                                    state.wallet?.currency ||
                                     state.user?.currency ||
                                     "XAF"
                             })
                     }
                 );
 
-
+            /*
+             * Selon la version du backend/provider,
+             * le lien peut avoir plusieurs noms.
+             */
             const url =
-                data?.url ||
+                data?.payment_link ||
                 data?.payment_url ||
-                data?.redirect_url;
+                data?.redirect_url ||
+                data?.checkout_url ||
+                data?.url ||
+                "";
 
+            const requestId =
+                data?.request_id ||
+                data?.deposit_request_id ||
+                data?.id ||
+                "";
+
+            const reference =
+                data?.reference ||
+                data?.deposit_reference ||
+                "";
+
+            /*
+             * On conserve la demande en attente pour pouvoir
+             * rafraîchir le wallet lorsque l'utilisateur revient
+             * après le paiement JessiKaPay.
+             */
+            sessionStorage.setItem(
+                "nexmarket_pending_deposit",
+                JSON.stringify({
+                    amount,
+                    request_id: requestId,
+                    reference,
+                    created_at: Date.now()
+                })
+            );
 
             if (url) {
-
                 closeModal();
 
+                showToast(
+                    "Paiement prêt",
+                    "La page JessiKaPay va s'ouvrir. Termine le paiement puis reviens dans NexMarket."
+                );
+
                 if (tg) {
-
-                    tg.openLink(
-                        url
-                    );
-
+                    tg.openLink(url);
                 } else {
-
-                    window.location.href =
-                        url;
+                    window.location.href = url;
                 }
 
                 return;
             }
 
-
-            showToast(
-                "Dépôt créé",
+            /*
+             * Sans lien de paiement, on ne prétend surtout pas
+             * que le dépôt est effectué.
+             */
+            throw new Error(
                 data?.message ||
-                "Suis les instructions pour terminer le paiement."
+                "JessiKaPay n'a fourni aucun lien de paiement."
             );
 
-
         } catch (error) {
-
             showModalError(
                 "Dépôt impossible",
                 error.message ||
                 "Impossible de créer le paiement."
             );
+
+        } finally {
+            if (submitButton) {
+                submitButton.disabled = false;
+                submitButton.textContent =
+                    submitButton.dataset.originalText ||
+                    "Continuer";
+            }
         }
     }
+
 
     /* =====================================================
        WITHDRAW
@@ -4223,42 +4409,40 @@
                     <div class="modal-field">
 
                         <label
-                            for="withdrawCountry"
-                            class="modal-field-label"
-                        >
-                            Pays
-                        </label>
-
-                        <input
-                            id="withdrawCountry"
-                            class="modal-standard-input"
-                            type="text"
-                            value="CG"
-                            placeholder="Ex : CG"
-                            maxlength="2"
-                            autocomplete="country"
-                            required
-                        >
-
-                    </div>
-
-                    <div class="modal-field">
-
-                        <label
                             for="withdrawPhone"
                             class="modal-field-label"
                         >
                             Numéro JessiKaPay
                         </label>
 
-                        <input
-                            id="withdrawPhone"
-                            class="modal-standard-input"
-                            type="text"
-                            placeholder="Ex : JP12345678"
-                            autocomplete="off"
-                            required
-                        >
+                        <div class="jp-lookup-row">
+
+                            <input
+                                id="withdrawPhone"
+                                class="modal-standard-input"
+                                type="text"
+                                placeholder="JP-222222"
+                                maxlength="9"
+                                inputmode="text"
+                                autocomplete="off"
+                                required
+                            >
+
+                            <button
+                                type="button"
+                                id="lookupJpButton"
+                                class="secondary-action jp-lookup-button"
+                            >
+                                Vérifier
+                            </button>
+
+                        </div>
+
+                        <div
+                            id="jpLookupResult"
+                            class="jp-lookup-result hidden"
+                            aria-live="polite"
+                        ></div>
 
                     </div>
 
@@ -4305,7 +4489,9 @@
 
                     <button
                         type="submit"
+                        id="confirmWithdrawalButton"
                         class="primary-action full-width modal-submit"
+                        disabled
                     >
                         ${ICONS.withdraw}
                         Confirmer le retrait
@@ -4322,6 +4508,203 @@
                 "submit",
                 handleWithdrawSubmit
             );
+
+        document
+            .getElementById("lookupJpButton")
+            ?.addEventListener(
+                "click",
+                lookupJessiKaPayNumber
+            );
+
+        document
+            .getElementById("withdrawPhone")
+            ?.addEventListener(
+                "input",
+                (event) => {
+                    const confirmButton =
+                        document.getElementById(
+                            "confirmWithdrawalButton"
+                        );
+
+                    const resultBox =
+                        document.getElementById(
+                            "jpLookupResult"
+                        );
+
+                    if (confirmButton) {
+                        confirmButton.disabled = true;
+                    }
+
+                    if (resultBox) {
+                        resultBox.classList.add("hidden");
+                        resultBox.innerHTML = "";
+                    }
+
+                    const normalized =
+                        normalizeJessiKaPayNumber(
+                            event?.target?.value ||
+                            document.getElementById("withdrawPhone")?.value
+                        );
+
+                    const currentInput =
+                        document.getElementById("withdrawPhone");
+
+                    if (currentInput) {
+                        currentInput.value = normalized;
+                    }
+
+                    clearModalError();
+                }
+            );
+    }
+
+
+    function normalizeJessiKaPayNumber(value) {
+        const raw = String(value || "")
+            .toUpperCase()
+            .replace(/[^A-Z0-9]/g, "");
+
+        let digits = raw.replace(/^JP/, "").replace(/\D/g, "").slice(0, 6);
+        return digits ? `JP-${digits}` : "";
+    }
+
+
+    function isValidJessiKaPayNumber(value) {
+        return /^JP-\d{6}$/.test(String(value || "").trim().toUpperCase());
+    }
+
+
+    async function lookupJessiKaPayNumber() {
+
+        const input =
+            document.getElementById(
+                "withdrawPhone"
+            );
+
+        const button =
+            document.getElementById(
+                "lookupJpButton"
+            );
+
+        const resultBox =
+            document.getElementById(
+                "jpLookupResult"
+            );
+
+        const confirmButton =
+            document.getElementById(
+                "confirmWithdrawalButton"
+            );
+
+        const jpNumber =
+            normalizeJessiKaPayNumber(input?.value);
+
+        if (input) {
+            input.value = jpNumber;
+        }
+
+        if (!isValidJessiKaPayNumber(jpNumber)) {
+            showModalError(
+                "Numéro JessiKaPay invalide",
+                "Utilise exactement le format JP-222222."
+            );
+            return false;
+        }
+
+        if (confirmButton) {
+            confirmButton.disabled = true;
+        }
+
+        if (resultBox) {
+            resultBox.classList.remove("hidden");
+            resultBox.innerHTML = `
+                <div class="jp-lookup-loading">
+                    Vérification du numéro...
+                </div>
+            `;
+        }
+
+        if (button) {
+            button.disabled = true;
+            button.textContent = "Vérification...";
+        }
+
+        clearModalError();
+
+        try {
+            const data =
+                await apiRequest(
+                    `/withdrawals/lookup/${encodeURIComponent(jpNumber)}`
+                );
+
+            if (!data?.found) {
+                if (resultBox) {
+                    resultBox.innerHTML = `
+                        <div class="jp-lookup-not-found">
+                            <strong>Numéro introuvable</strong>
+                            <span>Ce numéro JessiKaPay n'a pas été trouvé ou n'est pas disponible.</span>
+                        </div>
+                    `;
+                }
+
+                return false;
+            }
+
+            const displayName =
+                data.name ||
+                [data.first_name, data.last_name]
+                    .filter(Boolean)
+                    .join(" ") ||
+                "Compte JessiKaPay";
+
+            const photo =
+                data.photo_url ||
+                "";
+
+            if (resultBox) {
+                resultBox.innerHTML = `
+                    <div class="jp-lookup-card">
+                        <div class="jp-lookup-avatar">
+                            ${photo
+                                ? `<img src="${escapeHTML(photo)}" alt="" onerror="this.style.display='none';this.nextElementSibling.classList.remove('hidden')">`
+                                : ""}
+                            <span class="${photo ? "hidden" : ""}">
+                                ${escapeHTML((displayName || "J").charAt(0).toUpperCase())}
+                            </span>
+                        </div>
+                        <div class="jp-lookup-copy">
+                            <span>COMPTE VÉRIFIÉ</span>
+                            <strong>${escapeHTML(displayName)}</strong>
+                            <small>${escapeHTML(data.jp_number || jpNumber)}</small>
+                        </div>
+                        <div class="jp-lookup-badge">Vérifié</div>
+                    </div>
+                `;
+            }
+
+            if (confirmButton) {
+                confirmButton.disabled = false;
+            }
+
+            return true;
+
+        } catch (error) {
+            if (resultBox) {
+                resultBox.innerHTML = `
+                    <div class="jp-lookup-not-found">
+                        <strong>Vérification impossible</strong>
+                        <span>${escapeHTML(error.message || "Impossible de vérifier ce numéro.")}</span>
+                    </div>
+                `;
+            }
+            return false;
+
+        } finally {
+            if (button) {
+                button.disabled = false;
+                button.textContent = "Vérifier";
+            }
+        }
     }
 
 
@@ -4351,8 +4734,11 @@
 
 
         const jpNumber =
-            phoneInput?.value
-                ?.trim();
+            normalizeJessiKaPayNumber(phoneInput?.value);
+
+        if (phoneInput) {
+            phoneInput.value = jpNumber;
+        }
 
 
         if (
@@ -4369,13 +4755,26 @@
         }
 
 
-        if (!jpNumber) {
+        if (!isValidJessiKaPayNumber(jpNumber)) {
 
             showModalError(
-                "Numéro JessiKaPay requis",
-                "Entre ton numéro JessiKaPay (JP...)."
+                "Numéro JessiKaPay invalide",
+                "Utilise exactement le format JP-222222."
             );
 
+            return;
+        }
+
+        const confirmButton =
+            document.getElementById(
+                "confirmWithdrawalButton"
+            );
+
+        if (confirmButton?.disabled) {
+            showModalError(
+                "Numéro non vérifié",
+                "Vérifie d'abord le numéro JessiKaPay avant de confirmer le retrait."
+            );
             return;
         }
 
@@ -4760,17 +5159,24 @@
 
         function closePicker() {
             panel.classList.add("hidden");
+            panel.style.display = "none";
             trigger.setAttribute("aria-expanded", "false");
             document.body.classList.remove("category-picker-open");
         }
 
         function openPicker() {
+            if (panel.parentElement !== document.body) {
+                document.body.appendChild(panel);
+            }
             panel.classList.remove("hidden");
+            panel.style.display = "block";
             trigger.setAttribute("aria-expanded", "true");
             document.body.classList.add("category-picker-open");
         }
 
-        trigger.addEventListener("click", () => {
+        trigger.addEventListener("click", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
             if (panel.classList.contains("hidden")) {
                 openPicker();
             } else {
@@ -4804,6 +5210,16 @@
                 closePicker();
             });
 
+        });
+
+        document.addEventListener("click", event => {
+            if (
+                !panel.classList.contains("hidden") &&
+                !panel.contains(event.target) &&
+                !trigger.contains(event.target)
+            ) {
+                closePicker();
+            }
         });
 
         document.addEventListener("keydown", event => {
@@ -7242,6 +7658,29 @@
 
 
         document
+            .querySelectorAll(
+                "[data-category-select]"
+            )
+            .forEach(button => {
+
+                button.addEventListener(
+                    "click",
+                    async () => {
+
+                        const category =
+                            button.dataset.categorySelect ||
+                            "all";
+
+                        state.selectedCategory =
+                            category;
+
+                        await renderBuy();
+                    }
+                );
+            });
+
+
+        document
             .querySelector(
                 '[data-action="filters"]'
             )
@@ -7716,6 +8155,44 @@ function hideSplash() {
 
 
 /* =====================================================
+   RETOUR APRÈS PAIEMENT / DÉPÔT
+===================================================== */
+
+if (!window.__nexmarketDepositRefreshBound) {
+    window.__nexmarketDepositRefreshBound = true;
+
+    document.addEventListener(
+        "visibilitychange",
+        async () => {
+            if (
+                document.visibilityState !== "visible" ||
+                !sessionStorage.getItem(
+                    "nexmarket_pending_deposit"
+                )
+            ) {
+                return;
+            }
+
+            try {
+                await loadWallet();
+
+                if (
+                    state.currentPage === "wallet"
+                ) {
+                    await renderWallet();
+                }
+            } catch (error) {
+                console.warn(
+                    "Rafraîchissement du dépôt:",
+                    error.message
+                );
+            }
+        }
+    );
+}
+
+
+/* =====================================================
    APP START
 ===================================================== */
 
@@ -7747,6 +8224,23 @@ async function initApp() {
         );
     }
 
+
+    /*
+       Authentifier la Mini App avant les appels protégés.
+       Le JWT obtenu est utilisé par les routes wallet/retrait.
+    */
+
+    try {
+
+        await authenticateTelegram();
+
+    } catch (error) {
+
+        console.warn(
+            "Authentification NexMarket non disponible:",
+            error.message
+        );
+    }
 
     /*
        Charger l'utilisateur sans bloquer

@@ -2223,3 +2223,314 @@ body.category-picker-open {
     max-height:86vh !important;
   }
 }
+
+/* =========================================================
+   JESSIKAPAY JP LOOKUP
+========================================================= */
+.jp-lookup-row{
+  width:100%;
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  gap:8px;
+  align-items:center;
+}
+
+.jp-lookup-row .modal-standard-input{
+  min-width:0 !important;
+}
+
+.jp-lookup-button{
+  min-height:52px !important;
+  padding:0 15px !important;
+  border-radius:16px !important;
+  white-space:nowrap !important;
+  font-size:10px !important;
+  font-weight:800 !important;
+}
+
+.jp-lookup-button:disabled,
+.modal-submit:disabled{
+  opacity:.45 !important;
+  cursor:not-allowed !important;
+  filter:none !important;
+  transform:none !important;
+}
+
+.jp-lookup-result{
+  width:100%;
+  margin-top:8px;
+}
+
+.jp-lookup-result.hidden{
+  display:none !important;
+}
+
+.jp-lookup-card{
+  width:100%;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:10px;
+  border-radius:16px;
+  background:linear-gradient(145deg,rgba(53,211,154,.07),rgba(139,92,246,.055));
+  border:1px solid rgba(53,211,154,.18);
+}
+
+.jp-lookup-avatar{
+  width:42px;
+  height:42px;
+  min-width:42px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  overflow:hidden;
+  border-radius:13px;
+  background:rgba(139,92,246,.13);
+  color:#c8b6ff;
+  font-size:15px;
+  font-weight:850;
+}
+
+.jp-lookup-avatar img{
+  width:100%;
+  height:100%;
+  object-fit:cover;
+}
+
+.jp-lookup-avatar .hidden{
+  display:none !important;
+}
+
+.jp-lookup-copy{
+  min-width:0;
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+}
+
+.jp-lookup-copy span{
+  color:#65dcae;
+  font-size:7px;
+  font-weight:850;
+  letter-spacing:.75px;
+}
+
+.jp-lookup-copy strong{
+  color:#fff;
+  font-size:11px;
+  font-weight:800;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+.jp-lookup-copy small{
+  color:#777784;
+  font-size:8px;
+}
+
+.jp-lookup-badge{
+  flex:0 0 auto;
+  padding:5px 7px;
+  border-radius:999px;
+  color:#a8f0d1;
+  background:rgba(53,211,154,.08);
+  border:1px solid rgba(53,211,154,.14);
+  font-size:7px;
+  font-weight:800;
+}
+
+.jp-lookup-not-found,
+.jp-lookup-loading{
+  width:100%;
+  display:flex;
+  flex-direction:column;
+  gap:3px;
+  padding:10px 11px;
+  border-radius:15px;
+  background:rgba(255,255,255,.035);
+  border:1px solid rgba(255,255,255,.07);
+}
+
+.jp-lookup-not-found strong,
+.jp-lookup-loading{
+  color:#fff;
+  font-size:9px;
+  font-weight:800;
+}
+
+.jp-lookup-not-found span{
+  color:#92929f;
+  font-size:8px;
+  line-height:1.4;
+}
+
+@media(max-width:420px){
+  .jp-lookup-row{
+    grid-template-columns:1fr;
+  }
+
+  .jp-lookup-button{
+    width:100%;
+  }
+}
+
+/* =========================================================
+   NEXMARKET — BARRE DE CATÉGORIES MARKETPLACE
+   ========================================================= */
+
+.category-bar-wrap{
+  margin-top:14px;
+  padding:14px 0 2px;
+}
+
+.category-bar-header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  margin:0 2px 9px;
+}
+
+.category-bar-header .section-kicker{
+  margin:0;
+}
+
+.category-bar-hint{
+  color:var(--text-muted);
+  font-size:9px;
+  white-space:nowrap;
+}
+
+.category-bar{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  width:100%;
+  overflow-x:auto;
+  overscroll-behavior-x:contain;
+  padding:2px 2px 9px;
+  scrollbar-width:none;
+  scroll-snap-type:x proximity;
+  -webkit-overflow-scrolling:touch;
+}
+
+.category-bar::-webkit-scrollbar{
+  display:none;
+}
+
+.category-bar-item{
+  flex:0 0 auto;
+  min-height:38px;
+  padding:0 15px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:13px;
+  border:1px solid rgba(255,255,255,.075);
+  background:linear-gradient(180deg,rgba(255,255,255,.055),rgba(255,255,255,.025));
+  color:var(--text-soft);
+  font-size:10px;
+  font-weight:700;
+  white-space:nowrap;
+  scroll-snap-align:start;
+  transition:var(--transition);
+}
+
+.category-bar-item:hover{
+  border-color:rgba(139,92,246,.35);
+  color:var(--text);
+  background:rgba(139,92,246,.08);
+}
+
+.category-bar-item.active{
+  color:#fff;
+  border-color:rgba(139,92,246,.55);
+  background:linear-gradient(135deg,var(--purple),var(--purple-dark));
+  box-shadow:0 8px 22px rgba(139,92,246,.18);
+}
+
+.category-bar-item:active{
+  transform:scale(.96);
+}
+
+/* Harmonisation de la zone filtres avec la nouvelle barre */
+.filter-row{
+  margin-top:4px;
+  padding:8px 0 3px;
+}
+
+.filter-button,.filter-chip{
+  min-height:36px;
+  padding:8px 12px;
+  background:rgba(255,255,255,.035);
+}
+
+.filter-button{
+  background:rgba(139,92,246,.08);
+  border-color:rgba(139,92,246,.18);
+}
+
+.filter-chip.active{
+  background:rgba(139,92,246,.13);
+  border-color:rgba(139,92,246,.38);
+}
+
+/* Petites améliorations de cohérence pour la page Acheter */
+.buy-page .page-heading{
+  padding-bottom:14px;
+}
+
+.buy-page .search-box{
+  min-height:52px;
+  box-shadow:0 10px 30px rgba(0,0,0,.14);
+}
+
+.buy-page .listing-count{
+  padding-top:3px;
+  font-weight:650;
+}
+
+@media (max-width:520px){
+  .category-bar-item{
+    min-height:36px;
+    padding:0 13px;
+    font-size:9.5px;
+  }
+
+  .category-bar-header{
+    margin-bottom:7px;
+  }
+
+  .category-bar-hint{
+    font-size:8px;
+  }
+}
+
+/* =========================================================
+   NEXMARKET — RETRAIT JESSIKAPAY / JP NUMBER
+   ========================================================= */
+
+#withdrawPhone{
+  text-transform:uppercase;
+  letter-spacing:.04em;
+  font-weight:700;
+}
+
+#confirmWithdrawalButton:disabled{
+  opacity:.45;
+  cursor:not-allowed;
+  filter:saturate(.55);
+  box-shadow:none;
+}
+
+.jp-lookup-button:disabled{
+  opacity:.55;
+  cursor:wait;
+}
+
+/* Le sélecteur de catégorie est rendu au-dessus du modal et reste cliquable. */
+.category-panel{
+  pointer-events:auto !important;
+}
