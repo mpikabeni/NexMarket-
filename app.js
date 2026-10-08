@@ -2074,43 +2074,16 @@
             );
         }
 
-        let result = null;
-        let lastError = null;
-
-        /*
-         * Le backend NexMarket actuel utilise /auth.
-         * /auth/telegram reste un fallback pour les anciennes
-         * versions déjà déployées.
-         */
-        for (const endpoint of [
+        /* Le backend NexMarket actuel utilise uniquement /auth. */
+        const result = await apiRequest(
             "/auth",
-            "/auth/telegram"
-        ]) {
-            try {
-                result = await apiRequest(
-                    endpoint,
-                    {
-                        method: "POST",
-                        body: JSON.stringify({
-                            init_data: initData
-                        })
-                    }
-                );
-                break;
-            } catch (error) {
-                lastError = error;
-
-                /* On tente l'ancien chemin uniquement si nécessaire. */
-                if (!/404|Not Found/i.test(error.message || "")) {
-                    throw error;
-                }
+            {
+                method: "POST",
+                body: JSON.stringify({
+                    init_data: initData
+                })
             }
-        }
-
-        if (!result) {
-            throw lastError ||
-                new Error("Authentification NexMarket impossible.");
-        }
+        );
 
         const sessionToken =
             result?.session_token ||
@@ -2252,13 +2225,17 @@
 
         try {
 
-            const data =
-                await apiRequest(
-                    "/wallet"
-                );
+            let data;
+            try {
+                data = await apiRequest("/wallet/balance");
+            } catch (balanceError) {
+                /* Compatibilité avec une ancienne route /wallet. */
+                data = await apiRequest("/wallet");
+            }
 
             state.wallet =
                 data?.wallet ||
+                data?.balance ||
                 data;
 
             return state.wallet;
