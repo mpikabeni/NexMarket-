@@ -2074,9 +2074,9 @@
             );
         }
 
-        /* Le backend NexMarket actuel utilise uniquement /auth. */
+        /* Route d'authentification Telegram du backend. */
         const result = await apiRequest(
-            "/auth",
+            "/auth/telegram",
             {
                 method: "POST",
                 body: JSON.stringify({
@@ -4094,6 +4094,52 @@
 
                     </div>
 
+                    <div class="modal-field">
+
+                        <label
+                            for="depositCountry"
+                            class="modal-field-label"
+                        >
+                            Pays
+                        </label>
+
+                        <select
+                            id="depositCountry"
+                            class="modal-standard-input"
+                            required
+                        >
+                            <option value="TG">Togo</option>
+                            <option value="BJ">Bénin</option>
+                            <option value="CI">Côte d'Ivoire</option>
+                            <option value="SN">Sénégal</option>
+                            <option value="BF">Burkina Faso</option>
+                            <option value="ML">Mali</option>
+                            <option value="CG">Congo</option>
+                        </select>
+
+                    </div>
+
+                    <div class="modal-field">
+
+                        <label
+                            for="depositPhone"
+                            class="modal-field-label"
+                        >
+                            Numéro Mobile Money
+                        </label>
+
+                        <input
+                            id="depositPhone"
+                            class="modal-standard-input"
+                            type="tel"
+                            inputmode="tel"
+                            autocomplete="tel"
+                            placeholder="Ex : 90000000"
+                            required
+                        >
+
+                    </div>
+
                     <div class="payment-provider wallet-provider">
 
                         <span class="provider-icon">
@@ -4183,6 +4229,21 @@
             );
             return;
         }
+        const depositPhone = (
+            document.getElementById("depositPhone")?.value || ""
+        ).replace(/[\s-]+/g, "").trim();
+
+        const depositCountry =
+            document.getElementById("depositCountry")?.value || "TG";
+
+        if (depositPhone.length < 8) {
+            showModalError(
+                "Numéro invalide",
+                "Entre ton numéro Mobile Money."
+            );
+            return;
+        }
+
 
         const submitButton =
             document.querySelector(
@@ -4213,12 +4274,14 @@
 
             const data =
                 await apiRequest(
-                    "/wallet/deposit",
+                    "/deposits",
                     {
                         method: "POST",
                         body:
                             JSON.stringify({
                                 amount,
+                                phone: depositPhone,
+                                country: depositCountry,
                                 currency:
                                     state.wallet?.currency ||
                                     state.user?.currency ||
