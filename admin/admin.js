@@ -249,7 +249,7 @@
   }
 
   async function resolveReport(id) {
-    const resolution = (window.prompt('Résolution (obligatoire) :') || '').trim();
+    const resolution = (window.prompt('Résolution (obligatoire).\nNote : clore le signalement ne rembourse ni ne paie personne ; faites-le depuis la transaction (Rembourser / Payer le vendeur).') || '').trim();
     if (resolution.length < 3) throw new Error('Une résolution est obligatoire.');
     await api(`/reports/${encodeURIComponent(id)}/resolve`, {
       method: 'PATCH',
