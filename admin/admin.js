@@ -4,10 +4,11 @@
   const CONFIG = {
     API_BASE_URL: window.NEXMARKET_API_URL || 'https://nexamarket-backend.onrender.com/api',
     TOKEN_KEY: 'nexmarket_admin_token',
-    REQUEST_TIMEOUT: 15000,
+    REQUEST_TIMEOUT: 45000,
+    // Statuts réels renvoyés par le backend
     ACTIVE_TRANSACTION_STATUSES: [
-      'pending_payment','payment_confirmed','waiting_admin','assigned',
-      'transfer_pending','disputed','protection'
+      'pending_payment','waiting_admin','transfer_started',
+      'protection_period','disputed'
     ]
   };
 
@@ -50,6 +51,11 @@
     if (Array.isArray(data?.items)) return data.items;
     if (Array.isArray(data?.results)) return data.results;
     if (Array.isArray(data?.data)) return data.data;
+    // Le backend renvoie { users: [...] }, { listings: [...] }, etc.
+    if (data && typeof data === 'object') {
+      const list = Object.values(data).find(Array.isArray);
+      if (list) return list;
+    }
     return [];
   }
 
@@ -64,7 +70,14 @@
   function setMetric(id, value) { const el = document.getElementById(id); if (el) el.textContent = value ?? 0; }
 
   async function login(code) {
-    const data = await api('/admin/login', { method: 'POST', body: JSON.stringify({ code }) });
+    // Le backend vérifie aussi que le compte Telegram est celui de l'admin :
+    // la page doit donc être ouverte depuis la Mini App Telegram.
+    const initData = window.Telegram?.WebApp?.initData || '';
+    const data = await api('/admin/login', {
+      method: 'POST',
+      headers: initData ? { 'X-Telegram-Init-Data': initData } : {},
+      body: JSON.stringify({ code })
+    });
     const jwt = data?.access_token || data?.token || data?.jwt;
     if (!jwt) throw new Error('Le backend n’a pas retourné de token admin.');
     sessionStorage.setItem(CONFIG.TOKEN_KEY, jwt);
@@ -113,8 +126,7 @@
   }
 
   async function loadPendingListings() {
-    try { state.listings = items(await api('/admin/verifications')); }
-    catch { try { state.listings = items(await api('/admin/listings?status=pending')); } catch { state.listings = []; } }
+    state.listings = items(await api('/admin/listings/pending'));
     return state.listings;
   }
 
@@ -127,7 +139,7 @@
   async function loadChannels() { state.channels = items(await api('/admin/channels')); return state.channels; }
   async function loadReports() { state.reports = items(await api('/admin/reports')); return state.reports; }
   async function loadMessages() { state.messages = items(await api('/admin/messages')); return state.messages; }
-  async function loadWallet() { state.wallet = await api('/admin/wallet'); return state.wallet; }
+  async function loadWallet() { state.wallet = await api('/admin/platform-wallet'); return state.wallet; }
 
   function activeTransactions() {
     return state.transactions.filter(t => {
@@ -159,7 +171,7 @@
   }
   function transactionCard(x) {
     const id = x.id ?? x.transaction_id;
-    return `<button class="data-row" data-action="transaction" data-id="${esc(id)}"><div><b>#${esc(id)}</b><span>${esc(x.status || 'transaction')}</span></div><em>${esc(x.amount ?? '')} ${esc(x.currency || '')} ›</em></button>`;
+    return `<button class="data-row" data-action="transaction" data-id="${esc(id)}"><div><b>#${esc(id)}</b><span>${esc(x.reference || '')} · ${esc(x.status || 'transaction')}</span></div><em>${esc(x.channel_price ?? x.amount ?? '')} ${esc(x.currency || '')} ›</em></button>`;
   }
 
   const moduleData = {
@@ -194,11 +206,11 @@
 
   function renderModuleData(name) {
     const el = $('#moduleData'); if (!el) return;
-    if (name === 'users') el.innerHTML = state.users.slice(0,50).map(x => `<div class="detail-box"><b>${esc(x.name || x.username || x.telegram_id || x.id)}</b><p>${esc(x.status || x.role || '')}</p></div>`).join('') || empty('Aucun utilisateur.');
-    else if (name === 'channels') el.innerHTML = state.channels.slice(0,50).map(x => `<div class="detail-box"><b>${esc(x.username || x.title || x.id)}</b><p>${esc(x.status || '')}</p></div>`).join('') || empty('Aucun canal.');
+    if (name === 'users') el.innerHTML = state.users.slice(0,50).map(x => `<div class="detail-box"><b>${esc([x.first_name, x.username && '@' + x.username].filter(Boolean).join(' ') || x.telegram_id || x.id)}</b><p>${esc(x.is_admin ? 'admin' : (x.is_active === false ? 'désactivé' : 'actif'))}</p></div>`).join('') || empty('Aucun utilisateur.');
+    else if (name === 'channels') el.innerHTML = state.channels.slice(0,50).map(x => `<div class="detail-box"><b>${esc(x.telegram_username ? '@' + x.telegram_username : (x.title || x.id))}</b><p>${esc(x.verification_status || '')}</p></div>`).join('') || empty('Aucun canal.');
     else if (name === 'reports') el.innerHTML = state.reports.slice(0,50).map(x => `<div class="detail-box"><b>Signalement #${esc(x.id)}</b><p>${esc(x.reason || x.status || '')}</p><button class="small-action" data-report-resolve="${esc(x.id)}">Résoudre</button></div>`).join('') || empty('Aucun signalement.');
-    else if (name === 'messages') el.innerHTML = state.messages.slice(0,50).map(x => `<div class="detail-box"><b>${esc(x.id || 'Message')}</b><p>${esc(x.content || x.message || '')}</p></div>`).join('') || empty('Aucun message.');
-    else if (name === 'wallet') el.innerHTML = `<div class="detail-box"><b>Solde plateforme</b><h3>${esc(state.wallet?.balance ?? state.wallet?.platform_wallet?.balance ?? '—')} ${esc(state.wallet?.currency || state.wallet?.platform_wallet?.currency || '')}</h3></div>`;
+    else if (name === 'messages') el.innerHTML = state.messages.slice(0,50).map(x => `<div class="detail-box"><b>Transaction #${esc(x.transaction_id)} · utilisateur ${esc(x.sender_id)}</b><p>${esc(x.content || x.message || '')}</p></div>`).join('') || empty('Aucun message.');
+    else if (name === 'wallet') el.innerHTML = (state.wallet?.wallets || []).map(w => `<div class="detail-box"><b>Commissions (${esc(w.currency)})</b><h3>${esc(w.available_balance)} ${esc(w.currency)}</h3><p>Total collecté : ${esc(w.total_fees_collected)}</p></div>`).join('') || empty('Aucune commission encaissée pour le moment.');
     else if (name === 'transactions' || name === 'transfers') el.innerHTML = state.transactions.slice(0,50).map(transactionCard).join('') || empty('Aucune transaction.');
     else if (name === 'listings') el.innerHTML = state.listings.map(listingCard).join('') || empty('Aucune annonce en attente.');
     else if (name === 'stats') el.innerHTML = `<div class="detail-box"><p>Utilisateurs : <b>${esc(state.dashboard?.users ?? 0)}</b></p><p>Canaux : <b>${esc(state.dashboard?.channels ?? 0)}</b></p><p>Annonces : <b>${esc(state.dashboard?.listings ?? 0)}</b></p><p>Transactions : <b>${esc(state.dashboard?.transactions ?? 0)}</b></p></div>`;
@@ -206,17 +218,43 @@
   }
 
   async function listingDecision(id, action) {
-    await api(`/admin/listings/${encodeURIComponent(id)}/decision`, { method:'POST', body:JSON.stringify({ action }) });
-    showToast(`Annonce #${id} : ${action}`); await bootDashboard(); if (state.currentModule === 'listings') openModule('listings');
+    const base = `/admin/listings/${encodeURIComponent(id)}`;
+    if (action === 'approve') {
+      await api(`${base}/approve`, { method: 'POST' });
+    } else {
+      const reason = (window.prompt('Motif du refus (visible par le vendeur) :') || '').trim();
+      if (reason.length < 3) throw new Error('Un motif de refus est obligatoire.');
+      await api(`${base}/reject`, { method: 'POST', body: JSON.stringify({ reason }) });
+    }
+    showToast(`Annonce #${id} : ${action === 'approve' ? 'approuvée' : 'rejetée'}`); await bootDashboard(); if (state.currentModule === 'listings') openModule('listings');
   }
 
   async function transactionAction(id, action) {
-    await api(`/admin/transactions/${encodeURIComponent(id)}/action`, { method:'POST', body:JSON.stringify({ action }) });
-    showToast(`Transaction #${id} : ${action}`); await bootDashboard();
+    const base = `/transactions/${encodeURIComponent(id)}`;
+    const routes = {
+      assign: [`${base}/assign`],
+      start: [`${base}/start-transfer`],
+      complete: [`${base}/complete-transfer`],
+      refund: [`${base}/resolve`, { action: 'refund_buyer' }],
+      release: [`${base}/resolve`, { action: 'release_seller' }]
+    };
+    const [url, body] = routes[action] || [];
+    if (!url) throw new Error('Action inconnue.');
+    if (body) {
+      const note = (window.prompt('Note interne (facultatif) :') || '').trim();
+      if (note) body.note = note;
+    }
+    await api(url, { method: 'POST', body: body ? JSON.stringify(body) : undefined });
+    showToast(`Transaction #${id} mise à jour`); await bootDashboard();
   }
 
   async function resolveReport(id) {
-    await api(`/admin/reports/${encodeURIComponent(id)}/resolve`, { method:'POST', body:JSON.stringify({}) });
+    const resolution = (window.prompt('Résolution (obligatoire) :') || '').trim();
+    if (resolution.length < 3) throw new Error('Une résolution est obligatoire.');
+    await api(`/reports/${encodeURIComponent(id)}/resolve`, {
+      method: 'PATCH',
+      body: JSON.stringify({ resolution, result_status: 'resolved' })
+    });
     showToast(`Signalement #${id} résolu`); await openModule('reports');
   }
 
@@ -235,9 +273,29 @@
     catch(err) { showToast(err.message,true); }
   }
   async function openTransactionDetail(id) {
-    try { const x = await api(`/admin/transactions/${encodeURIComponent(id)}`); $('#adminBody').innerHTML = `<div class="module-detail"><div class="kicker">§ TRANSACTION #${esc(id)}</div><h2>${esc(x.status || 'Transaction')}</h2><div class="detail-box"><pre>${esc(JSON.stringify(x,null,2))}</pre></div></div>`; $('#adminModal').classList.remove('hidden'); }
-    catch(err) { showToast(err.message,true); }
+    try {
+      const x = await api(`/transactions/${encodeURIComponent(id)}`);
+      const st = x.status;
+      const buttons = [
+        !x.assigned_admin_id && !['completed','cancelled','refunded'].includes(st) ? ['assign','Me l’assigner'] : null,
+        st === 'waiting_admin' ? ['start','Démarrer le transfert'] : null,
+        st === 'transfer_started' ? ['complete','Transfert terminé'] : null,
+        ['waiting_admin','transfer_started','protection_period','disputed'].includes(st) ? ['refund','Rembourser l’acheteur'] : null,
+        ['protection_period','disputed'].includes(st) ? ['release','Payer le vendeur'] : null
+      ].filter(Boolean).map(([a, label]) => `<button class="small-action ${a === 'refund' ? 'danger' : ''}" data-tx-action="${a}">${label}</button>`).join('');
+      const view = { reference: x.reference, statut: st, annonce: x.listing_title, acheteur: x.buyer_name, vendeur: x.seller_name, prix: `${x.channel_price} ${x.currency}`, commission: x.platform_fee, 'versé au vendeur': x.seller_amount, 'fonds bloqués': x.escrow_held, 'fin de protection': x.protection_ends_at, 'motif du litige': x.dispute_reason };
+      $('#adminBody').innerHTML = `<div class="module-detail"><div class="kicker">§ TRANSACTION #${esc(id)}</div><h2>${esc(st || 'Transaction')}</h2><div class="detail-box"><pre>${esc(JSON.stringify(view, null, 2))}</pre></div><div class="actions">${buttons}</div></div>`;
+      $('#adminBody').dataset.id = id;
+      $('#adminModal').classList.remove('hidden');
+    } catch (err) { showToast(err.message, true); }
   }
+
+  document.addEventListener('click', async (e) => {
+    const t = e.target.closest('[data-tx-action]');
+    if (!t) return;
+    try { await transactionAction($('#adminBody').dataset.id, t.dataset.txAction); $('#adminModal').classList.add('hidden'); }
+    catch (err) { showToast(err.message, true); }
+  });
 
   document.addEventListener('click', async (e) => {
     const d = e.target.closest('[data-decision]');
@@ -246,7 +304,7 @@
 
   $('#closeAdmin')?.addEventListener('click', () => $('#adminModal').classList.add('hidden'));
   $('#adminModal')?.addEventListener('click', e => { if (e.target.classList.contains('admin-backdrop')) $('#adminModal').classList.add('hidden'); });
-  $('#adminExit')?.addEventListener('click', () => { sessionStorage.removeItem(CONFIG.TOKEN_KEY); location.href='index.html'; });
+  $('#adminExit')?.addEventListener('click', () => { sessionStorage.removeItem(CONFIG.TOKEN_KEY); location.href='../index.html'; });
   $('#adminMore')?.addEventListener('click', () => showToast(`API : ${CONFIG.API_BASE_URL}`));
   $('#moduleSearch')?.addEventListener('input', e => { const q=e.target.value.toLowerCase(); document.querySelectorAll('.module[data-module]').forEach(b=>b.style.display=b.innerText.toLowerCase().includes(q)?'flex':'none'); });
   $('#refreshAdmin')?.addEventListener('click', async () => { try { await bootDashboard(); showToast('Données actualisées'); } catch(err) { showToast(err.message,true); } });
