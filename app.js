@@ -5153,35 +5153,82 @@ function hideSplash() {
 /* =====================================================
    RETOUR APRÈS PAIEMENT / DÉPÔT
 ===================================================== */
-if (!window.__nexmarketDepositRefreshBound) {
-    window.__nexmarketDepositRefreshBound = true;
-    document.addEventListener(
-        "visibilitychange",
-        async () => {
-            if (
-                document.visibilityState !== "visible" ||
-                !sessionStorage.getItem(
-                    "nexmarket_pending_deposit"
-                )
-            ) {
-                return;
+/*
+ * Plus de webhook : le serveur vérifie le paiement auprès de JessiKaPay
+ * quand on le lui demande (et toutes les 30 s de lui-même). On le
+ * demande ici : au retour dans l'app, puis toutes les 8 s tant qu'un
+ * dépôt est en attente (15 minutes maximum).
+ */
+const DEPOSIT_FINAL_STATUSES = [
+    "paid", "failed", "expired", "cancelled", "rejected", "amount_mismatch"
+];
+
+async function checkPendingDeposit() {
+    let pending = null;
+
+    try {
+        pending = JSON.parse(
+            sessionStorage.getItem("nexmarket_pending_deposit") || "null"
+        );
+    } catch (error) {
+        pending = null;
+    }
+
+    if (!pending) {
+        return;
+    }
+
+    // Abandon après 15 minutes.
+    if (Date.now() - Number(pending.created_at || 0) > 15 * 60 * 1000) {
+        sessionStorage.removeItem("nexmarket_pending_deposit");
+        return;
+    }
+
+    try {
+        if (pending.request_id) {
+            const result = await apiRequest(
+                `/deposits/${pending.request_id}/check`,
+                { method: "POST" }
+            );
+
+            if (DEPOSIT_FINAL_STATUSES.includes(result?.status)) {
+                sessionStorage.removeItem("nexmarket_pending_deposit");
             }
-            try {
-                await loadWallet();
-                if (
-                    state.currentPage === "wallet"
-                ) {
-                    await renderWallet();
-                }
-            } catch (error) {
-                console.warn(
-                    "Rafraîchissement du dépôt:",
-                    error.message
-                );
+
+            if (result?.paid) {
+                showToast("Dépôt reçu", "Ton solde a été mis à jour.");
             }
         }
-    );
+
+        await loadWallet();
+
+        if (state.currentPage === "wallet") {
+            await renderWallet();
+        }
+    } catch (error) {
+        console.warn("Vérification du dépôt:", error.message);
+    }
 }
+
+if (!window.__nexmarketDepositRefreshBound) {
+    window.__nexmarketDepositRefreshBound = true;
+
+    document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") {
+            checkPendingDeposit();
+        }
+    });
+
+    setInterval(() => {
+        if (
+            document.visibilityState === "visible" &&
+            sessionStorage.getItem("nexmarket_pending_deposit")
+        ) {
+            checkPendingDeposit();
+        }
+    }, 8000);
+}
+
 /* =====================================================
    APP START
 ===================================================== */
