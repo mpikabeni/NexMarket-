@@ -11,7 +11,7 @@
         // Backend Render NexMarket
         API_BASE_URL:
             window.NEXMARKET_API_URL ||
-            "https://nexamarket-backend.onrender.com/api",
+            "https://nexamarket-backend-ffea.onrender.com",
         APP_VERSION: "1.0.0",
         ADMIN_PATH: "/admin/",
         ADMIN_TAP_COUNT: 5,
