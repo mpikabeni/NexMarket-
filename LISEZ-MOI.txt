@@ -1,0 +1,4 @@
+FICHIERS A REMPLACER (frontend)
+===============================
+app.js, style.css et index.html (le numero ?v= change : cela force le
+rechargement du CSS et du JS dans Telegram). Rien a supprimer.

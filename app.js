@@ -16,7 +16,8 @@
         ADMIN_PATH: "/admin/",
         ADMIN_TAP_COUNT: 5,
         ADMIN_TAP_WINDOW: 2500,
-        REQUEST_TIMEOUT: 45000
+        REQUEST_TIMEOUT: 20000,
+        SLOW_REQUEST_TIMEOUT: 35000
     };
     /* =====================================================
        TELEGRAM WEB APP
@@ -43,6 +44,8 @@
         adminTapTimer: null,
         searchQuery: "",
         selectedCategory: "all",
+        sort: "recent",
+        listingsError: "",
         selectedSubscribers: "all",
         selectedPrice: "all"
     };
@@ -128,16 +131,129 @@
     /* =====================================================
        API
     ===================================================== */
-    async function apiRequest(
+    /* =====================================================
+       RÉVEIL DU SERVEUR (hébergement gratuit)
+       Un service Render gratuit s'endort : le 1er appel peut durer
+       jusqu'à ~1 minute. Au lieu d'enchaîner des appels qui attendent
+       chacun leur délai complet (= plusieurs minutes), on « réveille »
+       le serveur une seule fois, en affichant un message clair.
+    ===================================================== */
+    const BACKEND = { ready: false, promise: null };
+
+    function setWakeBanner(visible) {
+        let banner = document.getElementById("serverWakeBanner");
+
+        if (!visible) {
+            banner?.remove();
+            return;
+        }
+
+        if (!banner) {
+            banner = document.createElement("div");
+            banner.id = "serverWakeBanner";
+            banner.className = "server-wake-banner";
+            banner.textContent =
+                "Réveil du serveur NexMarket… quelques secondes.";
+            document.body.appendChild(banner);
+        }
+    }
+
+    function wakeBackend() {
+        if (BACKEND.promise) {
+            return BACKEND.promise;
+        }
+
+        const healthUrl =
+            CONFIG.API_BASE_URL.replace(/\/api\/?$/, "") + "/health";
+
+        BACKEND.promise = (async () => {
+            const started = Date.now();
+            let bannerShown = false;
+
+            while (Date.now() - started < 120000) {
+                const controller = new AbortController();
+                const timer = setTimeout(() => controller.abort(), 8000);
+
+                try {
+                    const response = await fetch(healthUrl, {
+                        signal: controller.signal,
+                        cache: "no-store"
+                    });
+
+                    clearTimeout(timer);
+
+                    if (response.ok) {
+                        BACKEND.ready = true;
+                        setWakeBanner(false);
+                        return true;
+                    }
+                } catch (error) {
+                    clearTimeout(timer);
+                }
+
+                if (!bannerShown && Date.now() - started > 2500) {
+                    bannerShown = true;
+                    setWakeBanner(true);
+                }
+
+                await new Promise((resolve) => setTimeout(resolve, 1500));
+            }
+
+            setWakeBanner(false);
+            return false;
+        })();
+
+        return BACKEND.promise;
+    }
+
+    /* =====================================================
+       API (enveloppe : réveil + un nouvel essai pour les lectures)
+    ===================================================== */
+    async function apiRequest(endpoint, options = {}) {
+        if (endpoint !== "/health" && !BACKEND.ready) {
+            await Promise.race([
+                wakeBackend(),
+                new Promise((resolve) => setTimeout(resolve, 90000))
+            ]);
+        }
+
+        const method = String(options.method || "GET").toUpperCase();
+        const retries = method === "GET" ? 1 : 0;
+        let lastError;
+
+        for (let attempt = 0; attempt <= retries; attempt++) {
+            try {
+                return await apiRequestOnce(endpoint, options);
+            } catch (error) {
+                lastError = error;
+
+                if (!error.retryable || attempt === retries) {
+                    break;
+                }
+
+                await new Promise((resolve) => setTimeout(resolve, 1200));
+            }
+        }
+
+        throw lastError;
+    }
+
+    async function apiRequestOnce(
         endpoint,
         options = {}
     ) {
         const controller =
             new AbortController();
+        const slowCall =
+            /^\/(deposits|withdrawals|channels)/.test(endpoint) &&
+            String(options.method || "GET").toUpperCase() === "POST";
         const timeout =
             setTimeout(
                 () => controller.abort(),
-                CONFIG.REQUEST_TIMEOUT
+                options.timeout ||
+                    (slowCall
+                        ? CONFIG.SLOW_REQUEST_TIMEOUT
+                        : CONFIG.REQUEST_TIMEOUT)
             );
         const headers = {
             "Content-Type":
@@ -239,14 +355,18 @@
                 error.name ===
                 "AbortError"
             ) {
-                throw new Error(
-                    "La requête a pris trop de temps."
+                const timeoutError = new Error(
+                    "Le serveur met trop de temps à répondre. Réessaie dans un instant."
                 );
+                timeoutError.retryable = true;
+                throw timeoutError;
             }
             if (error instanceof TypeError && error.message === "Failed to fetch") {
-                throw new Error(
-                    "Impossible de contacter le serveur NexMarket. Vérifie que le backend Render est en ligne et que le domaine Netlify est autorisé par le CORS."
+                const networkError = new Error(
+                    "Impossible de joindre le serveur NexMarket. Vérifie ta connexion et réessaie."
                 );
+                networkError.retryable = true;
+                throw networkError;
             }
             throw error;
         } finally {
@@ -790,14 +910,7 @@
     ===================================================== */
     async function renderHome() {
         state.currentPage = "home";
-        showLoading(
-            "Chargement des annonces..."
-        );
-        await Promise.all([
-            loadListings(),
-            loadWallet()
-        ]);
-        if (!DOM.pageContainer) {
+if (!DOM.pageContainer) {
             return;
         }
         DOM.pageContainer.innerHTML = `
@@ -859,23 +972,49 @@
                     </button>
                 </div>
                 <div
-                    class="listing-feed"
+                    class="listing-feed shop-grid"
                     id="homeListingFeed"
                 >
-                    ${renderListingFeed(
-                        state.listings.slice(0, 8)
-                    )}
+                    ${renderShopSkeleton(4)}
                 </div>
             </section>
         `;
         bindPageActions();
+    
+        /* Les annonces arrivent ensuite, sans bloquer l'affichage. */
+        await loadListings();
+
+        if (state.currentPage !== "home") {
+            return;
+        }
+
+        const feed = document.getElementById("homeListingFeed");
+
+        if (feed) {
+            feed.innerHTML = renderListingFeed(state.listings.slice(0, 8));
+            bindPageActions();
+        }
     }
     /* =====================================================
        LISTING FEED
     ===================================================== */
-    function renderListingFeed(
-        listings
-    ) {
+    function renderListingFeed(listings) {
+        if (state.listingsError) {
+            return `
+                <div class="shop-error">
+                    <strong>Impossible de charger les canaux</strong>
+                    <p>${escapeHTML(state.listingsError)}</p>
+                    <button
+                        class="primary-action"
+                        type="button"
+                        data-action="retry-listings"
+                    >
+                        Réessayer
+                    </button>
+                </div>
+            `;
+        }
+
         if (
             !Array.isArray(listings) ||
             listings.length === 0
@@ -893,137 +1032,177 @@
     /* =====================================================
        LISTING
     ===================================================== */
-    function renderListing(
-        listing
-    ) {
-        const id =
-            listing.id;
-        const title =
-            listing.title ||
-            listing.name ||
-            "Canal Telegram";
-        const username =
-            listing.username
-                ? `@${String(
-                    listing.username
-                ).replace(/^@/, "")}`
-                : "Canal Telegram";
-        const description =
-            listing.description ||
-            "Canal Telegram disponible à la vente.";
-        const category =
-            listing.category ||
-            "Other";
-        const subscribers =
-            listing.subscribers_count;
-        const price =
-            listing.price ??
-            listing.locked_price ??
-            0;
+    function formatCompact(value) {
+        const number = Number(value);
+
+        if (!Number.isFinite(number)) {
+            return "—";
+        }
+
+        if (number >= 1000000) {
+            return `${(number / 1000000).toFixed(1).replace(".", ",")} M`;
+        }
+
+        if (number >= 1000) {
+            return `${(number / 1000).toFixed(1).replace(".", ",")} K`;
+        }
+
+        return String(number);
+    }
+
+    function listingInitials(title) {
+        const words = String(title || "NM")
+            .replace(/[^\p{L}\p{N} ]/gu, " ")
+            .trim()
+            .split(/\s+/)
+            .filter(Boolean);
+
+        return (
+            (words[0]?.[0] || "N") + (words[1]?.[0] || words[0]?.[1] || "M")
+        ).toUpperCase();
+    }
+
+    function renderSellerLine(seller) {
+        if (!seller) {
+            return "";
+        }
+
+        const rating =
+            seller.rating !== null && seller.rating !== undefined
+                ? `<b>★ ${String(seller.rating).replace(".", ",")}</b> (${seller.reviews})`
+                : "Nouveau vendeur";
+
+        const sales = seller.sales
+            ? ` · ${seller.sales} vente${seller.sales > 1 ? "s" : ""}`
+            : "";
+
+        return `<div class="shop-seller">${rating}${sales}</div>`;
+    }
+
+    function renderShopSkeleton(count = 4) {
+        return Array.from({ length: count })
+            .map(
+                () => `
+                    <div class="shop-card shop-skeleton" aria-hidden="true">
+                        <div class="shop-cover"></div>
+                        <div class="shop-body">
+                            <span class="sk-line w70"></span>
+                            <span class="sk-line w40"></span>
+                            <span class="sk-line w90"></span>
+                            <span class="sk-line w50"></span>
+                        </div>
+                    </div>
+                `
+            )
+            .join("");
+    }
+
+    function renderListing(listing) {
+        const id = listing.id;
+        const title = listing.title || listing.name || "Canal Telegram";
+        const username = listing.username
+            ? `@${String(listing.username).replace(/^@/, "")}`
+            : "Canal Telegram";
+        const category = listing.category || "";
+        const subscribers = listing.subscribers_count;
+        const price = listing.price ?? listing.locked_price ?? 0;
         const currency =
-            listing.currency ||
-            state.user?.currency ||
-            "XAF";
+            listing.currency || state.user?.currency || "XAF";
         const photo =
-            listing.photo_url ||
-            listing.channel?.photo_url ||
-            "";
-        const isFavorite =
-            state.favorites.some(
-                favorite =>
-                    Number(
-                        favorite.listing_id
-                    ) === Number(id)
-            );
+            listing.photo_url || listing.channel?.photo_url || "";
+        const verified = Boolean(
+            listing.telegram_verified && listing.bot_is_admin
+        );
+        const isFavorite = state.favorites.some(
+            (favorite) => Number(favorite.listing_id) === Number(id)
+        );
+        const perThousand = listing.price_per_1k;
+
         return `
             <article
-                class="channel-listing"
+                class="shop-card"
+                data-action="view-listing"
                 data-listing-id="${escapeHTML(id)}"
             >
-                <div class="listing-main">
-                    <div class="listing-image">
+                <div class="shop-cover">
+                    ${
+                        photo
+                            ? `<img class="shop-cover-img" src="${escapeHTML(photo)}" alt="${escapeHTML(title)}" loading="lazy">`
+                            : ""
+                    }
+                    <div class="shop-cover-fallback">
+                        <span>${escapeHTML(listingInitials(title))}</span>
+                    </div>
+                    <div class="shop-badges">
                         ${
-                            photo
-                                ? `
-                                    <img
-                                        src="${escapeHTML(photo)}"
-                                        alt="${escapeHTML(title)}"
-                                        loading="lazy"
-                                    >
-                                `
-                                : `
-                                    <div class="listing-image-placeholder">
-                                        ${ICONS.channel}
-                                    </div>
-                                `
+                            verified
+                                ? '<span class="shop-badge verified">✔ Vérifié</span>'
+                                : ""
+                        }
+                        ${
+                            category
+                                ? `<span class="shop-badge">${escapeHTML(category)}</span>`
+                                : ""
                         }
                     </div>
-                    <div class="listing-content">
-                        <div class="listing-top">
-                            <div>
-                                <span class="listing-category">
-                                    ${escapeHTML(category)}
-                                </span>
-                                <h3>
-                                    ${escapeHTML(title)}
-                                </h3>
-                                <span class="listing-username">
-                                    ${escapeHTML(username)}
-                                </span>
-                            </div>
-                            <button
-                                class="favorite-button ${
-                                    isFavorite
-                                        ? "active"
-                                        : ""
-                                }"
-                                type="button"
-                                data-action="favorite"
-                                data-listing-id="${escapeHTML(id)}"
-                                aria-label="Favoris"
-                            >
-                                ${ICONS.heart}
-                            </button>
+                    <button
+                        class="favorite-button shop-fav ${isFavorite ? "active" : ""}"
+                        type="button"
+                        data-action="favorite"
+                        data-listing-id="${escapeHTML(id)}"
+                        aria-label="Favoris"
+                    >
+                        ${ICONS.heart}
+                    </button>
+                </div>
+                <div class="shop-body">
+                    <h3 class="shop-title">${escapeHTML(title)}</h3>
+                    <span class="shop-username">${escapeHTML(username)}</span>
+                    <div class="shop-stats">
+                        <span>
+                            ${ICONS.user}
+                            ${
+                                subscribers !== null && subscribers !== undefined
+                                    ? formatCompact(subscribers)
+                                    : "—"
+                            }
+                            abonnés
+                        </span>
+                        ${
+                            perThousand
+                                ? `<span>≈ ${formatNumber(perThousand)} / 1K</span>`
+                                : ""
+                        }
+                    </div>
+                    ${renderSellerLine(listing.seller)}
+                    <div class="shop-footer">
+                        <div class="shop-price">
+                            <small>Prix</small>
+                            <strong>${formatMoney(price, currency)}</strong>
                         </div>
-                        <p class="listing-description">
-                            ${escapeHTML(description)}
-                        </p>
-                        <div class="listing-meta">
-                            <span>
-                                ${ICONS.user}
-                                ${
-                                    subscribers !== null &&
-                                    subscribers !== undefined
-                                        ? formatNumber(
-                                            subscribers
-                                        )
-                                        : "—"
-                                }
-                                abonnés
-                            </span>
-                        </div>
-                        <div class="listing-bottom">
-                            <strong class="listing-price">
-                                ${formatMoney(
-                                    price,
-                                    currency
-                                )}
-                            </strong>
-                            <button
-                                class="listing-view-button"
-                                type="button"
-                                data-action="view-listing"
-                                data-listing-id="${escapeHTML(id)}"
-                            >
-                                Voir
-                                ${ICONS.arrow}
-                            </button>
-                        </div>
+                        <span class="shop-cta">Voir ${ICONS.arrow}</span>
                     </div>
                 </div>
             </article>
         `;
     }
+
+    /* Photo de canal introuvable : on garde les initiales (sans onerror inline). */
+    document.addEventListener(
+        "error",
+        (event) => {
+            const image = event.target;
+
+            if (
+                image instanceof HTMLImageElement &&
+                image.classList.contains("shop-cover-img")
+            ) {
+                image.remove();
+            }
+        },
+        true
+    );
+
     /* =====================================================
        PAGE BUY
     ===================================================== */
@@ -1089,14 +1268,7 @@
     }
     async function renderBuy() {
         state.currentPage = "buy";
-        showLoading(
-            "Recherche des canaux..."
-        );
-        await Promise.all([
-            loadListings(),
-            loadFavorites()
-        ]);
-        if (!DOM.pageContainer) {
+if (!DOM.pageContainer) {
             return;
         }
         DOM.pageContainer.innerHTML = `
@@ -1155,27 +1327,65 @@
                         }
                     </button>
                 </div>
-                <div class="listing-count">
-                    ${
-                        state.listings.length
-                    }
-                    annonce${
-                        state.listings.length > 1
-                            ? "s"
-                            : ""
-                    }
+                                <div class="sort-row" role="group" aria-label="Trier">
+                    ${[
+                        ["recent", "Récents"],
+                        ["price_asc", "Prix ↑"],
+                        ["price_desc", "Prix ↓"],
+                        ["subs_desc", "Abonnés"]
+                    ]
+                        .map(
+                            ([value, label]) => `
+                                <button
+                                    class="sort-chip ${state.sort === value ? "active" : ""}"
+                                    type="button"
+                                    data-sort="${value}"
+                                >${label}</button>
+                            `
+                        )
+                        .join("")}
                 </div>
-                <div
-                    class="listing-feed"
+                <div class="listing-count" id="buyListingCount">
+                    Chargement…
+                </div>
+                <div class="listing-feed shop-grid" id="buyListingFeed"
                     id="buyListingFeed"
                 >
-                    ${renderListingFeed(
-                        state.listings
-                    )}
+                    ${renderShopSkeleton(4)}
                 </div>
             </section>
         `;
         bindBuyActions();
+    
+        await refreshBuyFeed();
+    }
+
+    async function refreshBuyFeed() {
+        const feed = document.getElementById("buyListingFeed");
+        const count = document.getElementById("buyListingCount");
+
+        if (feed) {
+            feed.innerHTML = renderShopSkeleton(4);
+        }
+
+        await Promise.allSettled([loadListings(), loadFavorites()]);
+
+        if (state.currentPage !== "buy") {
+            return;
+        }
+
+        if (feed) {
+            feed.innerHTML = renderListingFeed(state.listings);
+        }
+
+        if (count) {
+            const total = state.listings.length;
+            count.textContent = state.listingsError
+                ? ""
+                : `${total} annonce${total > 1 ? "s" : ""}`;
+        }
+
+        bindPageActions();
     }
     /* =====================================================
        SEARCH
@@ -1198,7 +1408,7 @@
                         async () => {
                             state.searchQuery =
                                 event.target.value;
-                            await renderBuy();
+                            await refreshBuyFeed();
                         },
                         350
                     );
@@ -1350,6 +1560,10 @@
                     state.selectedCategory
                 );
             }
+            if (state.sort && state.sort !== "recent") {
+                params.set("sort", state.sort);
+            }
+
             const query =
                 params.toString();
             const endpoint =
@@ -1373,6 +1587,7 @@
                 rawListings.map(
                     normalizeListing
                 );
+            state.listingsError = "";
             return state.listings;
         } catch (error) {
             console.error(
@@ -1380,20 +1595,9 @@
                 error
             );
             state.listings = [];
-            // En mode hors Telegram / hors connexion, ne pas afficher
-            // un toast rouge qui recouvre l'interface. La page d'accueil
-            // affiche simplement son état vide et reste utilisable.
-            const message = String(error?.message || "");
-            const isConnectionError =
-                message.includes("Impossible de contacter le serveur") ||
-                message.includes("Failed to fetch") ||
-                message.includes("La requête a pris trop de temps");
-            if (!isConnectionError) {
-                showToast(
-                    "Erreur",
-                    message || "Impossible de charger les annonces."
-                );
-            }
+            state.listingsError =
+                String(error?.message || "") ||
+                "Le serveur ne répond pas. Réessaie dans un instant.";
             return [];
         }
     }
@@ -1511,6 +1715,49 @@
     /* =====================================================
        LOAD USER
     ===================================================== */
+    const USER_CACHE_KEY = "nexmarket_user_cache_v1";
+
+    function readUserCache(telegramId) {
+        try {
+            const cached = JSON.parse(
+                localStorage.getItem(USER_CACHE_KEY) || "null"
+            );
+
+            return cached &&
+                Number(cached.telegram_id) === Number(telegramId)
+                ? cached
+                : null;
+        } catch (error) {
+            return null;
+        }
+    }
+
+    function writeUserCache(user) {
+        try {
+            if (user?.nexa_id) {
+                localStorage.setItem(
+                    USER_CACHE_KEY,
+                    JSON.stringify({
+                        telegram_id: user.telegram_id,
+                        nexa_id: user.nexa_id,
+                        currency: user.currency,
+                        language: user.language
+                    })
+                );
+            }
+        } catch (error) {
+            /* stockage indisponible : sans conséquence */
+        }
+    }
+
+    function updateNexaIdDisplay() {
+        document
+            .querySelectorAll(".wallet-id b")
+            .forEach((element) => {
+                element.textContent = state.user?.nexa_id || "En cours…";
+            });
+    }
+
     async function loadCurrentUser() {
         const telegramUser =
             getTelegramUser() || {};
@@ -1580,6 +1827,7 @@
                 telegramUser.id,
             nexa_id:
                 backendUser.nexa_id ||
+                readUserCache(telegramUser.id)?.nexa_id ||
                 "",
             photo_url:
                 telegramUser.photo_url ||
@@ -1593,14 +1841,18 @@
                 backendUser.language ||
                 "fr"
         };
+        writeUserCache(state.user);
         updateTelegramProfile();
+        updateNexaIdDisplay();
         return state.user;
     }
     /* =====================================================
        LOAD WALLET
     ===================================================== */
     async function loadWallet() {
-        if (!state.user) {
+        /* Il suffit d'avoir une session : le portefeuille ne doit pas
+           attendre le chargement du profil. */
+        if (!sessionStorage.getItem("nexmarket_session_token")) {
             return null;
         }
         try {
@@ -1702,10 +1954,14 @@
                 listing.currency ||
                 state.user?.currency ||
                 "XAF";
+            const seller = listing.seller || {};
             const sellerName =
-                listing.seller?.first_name ||
+                seller.name ||
                 listing.seller_name ||
                 "Vendeur";
+            const perThousand = listing.price_per_1k;
+            const published =
+                listing.published_at || listing.created_at;
             openModal(`
                 <div class="listing-detail">
                     <div class="detail-image">
@@ -1723,7 +1979,7 @@
                                 `
                                 : `
                                     <div class="detail-image-placeholder">
-                                        ${ICONS.channel}
+                                        <span>${escapeHTML(listingInitials(title))}</span>
                                     </div>
                                 `
                         }
@@ -1768,21 +2024,28 @@
                             currency
                         )}
                     </div>
-                    <div class="detail-stats">
+                    <div class="detail-stats shop-detail-stats">
                         <div>
-                            <strong>
-                                ${
-                                    listing.subscribers_count !==
-                                    undefined
-                                        ? formatNumber(
-                                            listing.subscribers_count
-                                        )
-                                        : "—"
-                                }
-                            </strong>
-                            <span>
-                                Abonnés
-                            </span>
+                            <strong>${
+                                listing.subscribers_count !== undefined
+                                    ? formatNumber(listing.subscribers_count)
+                                    : "—"
+                            }</strong>
+                            <span>Abonnés</span>
+                        </div>
+                        <div>
+                            <strong>${
+                                perThousand ? formatNumber(perThousand) : "—"
+                            }</strong>
+                            <span>Prix / 1 000 abonnés</span>
+                        </div>
+                        <div>
+                            <strong>${escapeHTML(listing.category || "—")}</strong>
+                            <span>Catégorie</span>
+                        </div>
+                        <div>
+                            <strong>${formatDate(published)}</strong>
+                            <span>Mis en vente le</span>
                         </div>
                     </div>
                     <div class="detail-description">
@@ -1824,15 +2087,25 @@
                             </strong>
                         </div>
                     </div>
-                    <div class="seller-info">
-                        <span>
-                            Vendeur
-                        </span>
-                        <strong>
-                            ${escapeHTML(
-                                sellerName
-                            )}
-                        </strong>
+                    <div class="seller-info seller-card">
+                        <div class="seller-avatar">${escapeHTML(listingInitials(sellerName))}</div>
+                        <div class="seller-copy">
+                            <span>Vendeur</span>
+                            <strong>${escapeHTML(sellerName)}</strong>
+                            <small>${
+                                seller.rating !== null && seller.rating !== undefined
+                                    ? `★ ${String(seller.rating).replace(".", ",")} · ${seller.reviews} avis`
+                                    : "Nouveau vendeur"
+                            }${
+                                seller.sales
+                                    ? ` · ${seller.sales} vente${seller.sales > 1 ? "s" : ""}`
+                                    : ""
+                            }</small>
+                        </div>
+                        <div class="seller-secure">
+                            ${ICONS.lock}
+                            <span>Paiement sécurisé</span>
+                        </div>
                     </div>
                     <button
                         class="primary-action full-width"
@@ -2113,7 +2386,7 @@
                         <b>
                             ${
                                 state.user?.nexa_id ||
-                                "—"
+                                "En cours…"
                             }
                         </b>
                     </div>
@@ -4817,6 +5090,15 @@
                 );
             });
         document
+            .querySelectorAll("[data-sort]")
+            .forEach((button) => {
+                button.addEventListener("click", async () => {
+                    state.sort = button.dataset.sort || "recent";
+                    await renderBuy();
+                });
+            });
+
+        document
             .querySelector(
                 '[data-action="filters"]'
             )
@@ -4947,7 +5229,20 @@
             element.dataset.action;
         const listingId =
             element.dataset.listingId;
+        if (action === "favorite") {
+            /* la carte entière est cliquable : ne pas ouvrir l'annonce */
+            event.stopPropagation();
+        }
+
         switch (action) {
+            case "retry-listings":
+                state.listingsError = "";
+                if (state.currentPage === "buy") {
+                    await refreshBuyFeed();
+                } else {
+                    await navigateTo("home");
+                }
+                break;
             case "home":
                 await navigateTo(
                     "home"
@@ -5234,72 +5529,82 @@ if (!window.__nexmarketDepositRefreshBound) {
 ===================================================== */
 async function initApp() {
     /*
-       Afficher l'application AVANT les appels réseau.
-       Render ne doit jamais pouvoir laisser l'écran noir.
+       1) L'interface s'affiche TOUT DE SUITE (avant tout appel réseau).
+       2) Le splash disparaît après ~1,2 s quoi qu'il arrive : avant, il
+          n'était masqué qu'APRÈS authentification + utilisateur + accueil,
+          donc tant que le serveur dormait il restait des minutes.
     */
     showApplication();
+
     try {
         initTelegram();
         setupHeader();
         setupBottomNavigation();
         setupModal();
     } catch (error) {
-        console.error(
-            "Erreur interface NexMarket:",
-            error
-        );
+        console.error("Erreur interface NexMarket:", error);
     }
-    /*
-       Authentifier la Mini App avant les appels protégés.
-       Le JWT obtenu est utilisé par les routes wallet/retrait.
-    */
+
+    setTimeout(hideSplash, 1200);
+
+    /* Utilisateur en cache (Nexa ID visible immédiatement). */
+    const telegramUser = getTelegramUser();
+
+    if (telegramUser?.id) {
+        const cached = readUserCache(telegramUser.id);
+
+        if (cached) {
+            state.user = {
+                ...telegramUser,
+                telegram_id: telegramUser.id,
+                nexa_id: cached.nexa_id,
+                currency: cached.currency || "XAF",
+                language: cached.language || "fr"
+            };
+        }
+    }
+
+    /* Page d'accueil immédiatement (squelette), sans attendre le réseau. */
+    const homeReady = navigateTo("home").catch((error) => {
+        console.error("Erreur accueil NexMarket:", error);
+
+        if (DOM.pageContainer) {
+            DOM.pageContainer.innerHTML = showEmpty(
+                "NexMarket",
+                "Impossible de charger les annonces pour le moment.",
+                ICONS.help
+            );
+        }
+    });
+
+    /* Réveil du serveur + authentification, en parallèle de l'accueil. */
+    wakeBackend();
+
     try {
         await authenticateTelegram();
     } catch (error) {
-        console.warn(
-            "Authentification NexMarket non disponible:",
-            error.message
-        );
+        console.warn("Authentification NexMarket non disponible:", error.message);
     }
-    /*
-       Charger l'utilisateur sans bloquer
-       l'affichage de l'application.
-    */
-    try {
-        await loadCurrentUser();
-    } catch (error) {
-        console.warn(
-            "Utilisateur non chargé:",
-            error
-        );
+
+    /* Utilisateur et portefeuille chargés EN PARALLÈLE. */
+    await Promise.allSettled([
+        loadCurrentUser(),
+        loadWallet()
+    ]);
+
+    await homeReady;
+
+    /* Nexa ID encore absent (réseau lent) : nouvel essai discret. */
+    if (!state.user?.nexa_id) {
+        setTimeout(async () => {
+            try {
+                await loadCurrentUser();
+                updateNexaIdDisplay();
+            } catch (error) {
+                console.warn("Nexa ID:", error.message);
+            }
+        }, 4000);
     }
-    /*
-       Charger la page d'accueil.
-    */
-    try {
-        await navigateTo("home");
-    } catch (error) {
-        console.error(
-            "Erreur accueil NexMarket:",
-            error
-        );
-        if (DOM.pageContainer) {
-            DOM.pageContainer.innerHTML =
-                showEmpty(
-                    "NexMarket",
-                    "Impossible de charger les annonces pour le moment.",
-                    ICONS.help
-                );
-        }
-    }
-    /*
-       Le splash reste visible au minimum 4 secondes.
-       Il disparaît ensuite avec l'animation CSS.
-    */
-    setTimeout(
-        hideSplash,
-        4000
-    );
 }
     /* =====================================================
        DOM READY
