@@ -2,7 +2,7 @@
   'use strict';
 
   const CONFIG = {
-    API_BASE_URL: window.NEXMARKET_API_URL || 'https://nexamarket-backend.onrender.com/api',
+    API_BASE_URL: window.NEXMARKET_API_URL || 'https://nexamarket-backend-ffea.onrender.com',
     TOKEN_KEY: 'nexmarket_admin_token',
     REQUEST_TIMEOUT: 45000,
     // Statuts réels renvoyés par le backend
