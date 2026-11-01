@@ -2633,3 +2633,55 @@ body.category-picker-open {
   color:var(--success);font-size:8.5px;font-weight:700;text-align:center
 }
 .seller-secure svg{width:16px;height:16px}
+
+
+/* =========================================================
+   SPLASH — profil de l'utilisateur + progression (10 s minimum)
+   ========================================================= */
+.splash-user{
+  margin-top:22px;display:flex;flex-direction:column;align-items:center;
+  gap:4px;min-height:108px;transition:opacity .4s ease
+}
+.splash-user.is-empty{visibility:hidden;opacity:0}
+.splash-avatar{
+  position:relative;width:68px;height:68px;overflow:hidden;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(135deg,#9b6cff,#6a35d8);
+  font-size:24px;font-weight:800;color:#fff;
+  box-shadow:0 0 0 3px rgba(139,92,246,.35),0 12px 30px rgba(0,0,0,.4)
+}
+.splash-avatar img{
+  position:absolute;inset:0;width:100%;height:100%;object-fit:cover
+}
+.splash-avatar img.is-hidden{display:none}
+.splash-welcome{
+  margin-top:8px;color:var(--text-muted);font-size:10px;
+  letter-spacing:1.6px;text-transform:uppercase
+}
+.splash-name{
+  max-width:min(280px,80vw);overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;font-size:18px;font-weight:800
+}
+.splash-progress{
+  width:min(240px,70vw);height:4px;margin:24px auto 0;overflow:hidden;
+  border-radius:999px;background:rgba(255,255,255,.08)
+}
+.splash-progress span{
+  display:block;width:0;height:100%;border-radius:inherit;
+  background:linear-gradient(90deg,var(--purple),var(--purple-light));
+  animation:splashFill 10s linear forwards
+}
+.splash-progress.is-waiting span{
+  width:100%;animation:splashWait 1.4s ease-in-out infinite
+}
+.splash-status{
+  min-height:16px;margin-top:12px;color:var(--text-soft);font-size:12px
+}
+@keyframes splashFill{from{width:0}to{width:100%}}
+@keyframes splashWait{0%,100%{opacity:1}50%{opacity:.35}}
+
+/* photo de profil (page Profil) : initiales visibles si la photo échoue */
+.profile-avatar-large{position:relative;overflow:hidden}
+.profile-avatar-large img{
+  position:absolute;inset:0;width:100%;height:100%;object-fit:cover
+}

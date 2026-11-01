@@ -765,32 +765,271 @@
     /* =====================================================
        TELEGRAM PROFILE
     ===================================================== */
-    function updateTelegramProfile() {
-        const telegramUser = getTelegramUser();
-        const user = state.user || telegramUser;
-        if (!user && !telegramUser) {
+    /* =====================================================
+       PROFIL (nom + photo) — SOURCE UNIQUE
+       Priorité : Telegram > compte NexMarket > cache local.
+       Une valeur vide ne remplace jamais une valeur connue.
+    ===================================================== */
+    const PROFILE_CACHE_KEY = "nexmarket_profile_cache_v1";
+    const SPLASH_MIN_MS = 10000;
+    const SPLASH_MAX_MS = 60000;
+
+    function readProfileCache() {
+        try {
+            return JSON.parse(
+                localStorage.getItem(PROFILE_CACHE_KEY) || "null"
+            );
+        } catch (error) {
+            return null;
+        }
+    }
+
+    function writeProfileCache(profile) {
+        try {
+            if (!profile?.telegram_id || !(profile.name || profile.photo_url)) {
+                return;
+            }
+
+            localStorage.setItem(
+                PROFILE_CACHE_KEY,
+                JSON.stringify({
+                    telegram_id: profile.telegram_id,
+                    first_name: profile.first_name,
+                    last_name: profile.last_name,
+                    username: profile.username,
+                    // une URL blob: n'a de sens que pour la session en cours
+                    photo_url: String(profile.photo_url || "").startsWith("blob:")
+                        ? ""
+                        : profile.photo_url
+                })
+            );
+        } catch (error) {
+            /* stockage indisponible : sans conséquence */
+        }
+    }
+
+    function getProfile() {
+        const tgUser = getTelegramUser() || {};
+        const user = state.user || {};
+        const stored = readProfileCache() || {};
+
+        // Le cache n'est utilisé que pour le même compte Telegram.
+        const cached =
+            !tgUser.id ||
+            !stored.telegram_id ||
+            Number(stored.telegram_id) === Number(tgUser.id)
+                ? stored
+                : {};
+
+        const first = String(
+            tgUser.first_name || user.first_name || cached.first_name || ""
+        ).trim();
+        const last = String(
+            tgUser.last_name || user.last_name || cached.last_name || ""
+        ).trim();
+        const username = String(
+            tgUser.username || user.username || cached.username || ""
+        ).trim();
+
+        const fullName = `${first} ${last}`.trim();
+        const name = fullName || (username ? `@${username}` : "");
+        const source = fullName || username;
+
+        const initials = source
+            ? source
+                  .split(/\s+/)
+                  .slice(0, 2)
+                  .map((word) => word.charAt(0).toUpperCase())
+                  .join("")
+            : "N";
+
+        // Après vérification (resolveAvatar) on ne garde que la photo
+        // qui s'affiche réellement ; avant, on prend la meilleure candidate.
+        const photo = state.photoChecked
+            ? state.resolvedPhoto || ""
+            : tgUser.photo_url ||
+              user.photo_url ||
+              cached.photo_url ||
+              "";
+
+        return {
+            telegram_id: tgUser.id || user.telegram_id || cached.telegram_id || null,
+            first_name: first,
+            last_name: last,
+            username,
+            name,
+            initials,
+            photo_url: photo
+        };
+    }
+
+    function canLoadImage(url, timeoutMs = 6000) {
+        return new Promise((resolve) => {
+            const image = new Image();
+
+            const timer = setTimeout(() => {
+                image.onload = image.onerror = null;
+                resolve(false);
+            }, timeoutMs);
+
+            image.onload = () => {
+                clearTimeout(timer);
+                resolve(true);
+            };
+
+            image.onerror = () => {
+                clearTimeout(timer);
+                resolve(false);
+            };
+
+            image.referrerPolicy = "no-referrer";
+            image.src = url;
+        });
+    }
+
+    /* Photo de secours : le serveur la demande à Telegram via le bot. */
+    async function fetchAvatarBlobUrl() {
+        const token = sessionStorage.getItem("nexmarket_session_token");
+
+        if (!token) {
+            return "";
+        }
+
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 15000);
+
+        try {
+            const response = await fetch(
+                `${CONFIG.API_BASE_URL}/users/me/photo`,
+                {
+                    headers: { Authorization: `Bearer ${token}` },
+                    signal: controller.signal
+                }
+            );
+
+            if (!response.ok) {
+                return "";
+            }
+
+            const blob = await response.blob();
+
+            return blob.size ? URL.createObjectURL(blob) : "";
+        } catch (error) {
+            return "";
+        } finally {
+            clearTimeout(timer);
+        }
+    }
+
+    let avatarPromise = null;
+
+    function resolveAvatar() {
+        if (avatarPromise) {
+            return avatarPromise;
+        }
+
+        avatarPromise = (async () => {
+            const profile = getProfile();
+
+            if (profile.photo_url && (await canLoadImage(profile.photo_url))) {
+                state.resolvedPhoto = profile.photo_url;
+            } else {
+                if (!BACKEND.ready) {
+                    await Promise.race([
+                        wakeBackend(),
+                        new Promise((resolve) => setTimeout(resolve, 30000))
+                    ]);
+                }
+
+                state.resolvedPhoto = await fetchAvatarBlobUrl();
+            }
+
+            state.photoChecked = true;
+            updateTelegramProfile();
+        })();
+
+        return avatarPromise;
+    }
+
+    /* ---------------- splash ---------------- */
+    function setSplashStatus(text) {
+        const element = document.getElementById("splashStatus");
+
+        if (element) {
+            element.textContent = text;
+        }
+    }
+
+    function updateSplashUser() {
+        const box = document.getElementById("splashUser");
+
+        if (!box) {
             return;
         }
-        // La photo Telegram vient prioritairement de Telegram WebApp.
-        // Le backend peut ne pas renvoyer photo_url : on ne doit jamais
-        // écraser la photo fournie par Telegram avec une valeur vide.
-        const photoUrl =
-            telegramUser?.photo_url ||
-            user?.photo_url ||
-            "";
+
+        const profile = getProfile();
+        const nameElement = document.getElementById("splashName");
+        const letter = document.getElementById("splashAvatarLetter");
+        const image = document.getElementById("splashAvatar");
+
+        if (profile.name) {
+            nameElement.textContent = profile.name;
+            box.classList.remove("is-empty");
+        }
+
+        if (letter) {
+            letter.textContent = profile.initials;
+        }
+
+        if (image) {
+            if (profile.photo_url) {
+                image.onerror = () => {
+                    image.classList.add("is-hidden");
+                    image.removeAttribute("src");
+                };
+
+                if (image.getAttribute("src") !== profile.photo_url) {
+                    image.src = profile.photo_url;
+                }
+
+                image.classList.remove("is-hidden");
+            } else {
+                image.classList.add("is-hidden");
+                image.removeAttribute("src");
+            }
+        }
+    }
+
+    function updateTelegramProfile() {
+        const profile = getProfile();
+
+        if (profile.telegram_id) {
+            writeProfileCache(profile);
+        }
+
         if (DOM.headerGreeting) {
             DOM.headerGreeting.textContent =
-                `Bonjour ${user?.first_name || telegramUser?.first_name || "à vous"}`;
+                `Bonjour ${profile.first_name || profile.name || "à vous"}`;
         }
+
         if (DOM.telegramAvatar) {
             DOM.telegramAvatar.onerror = () => {
                 DOM.telegramAvatar.removeAttribute("src");
                 DOM.telegramAvatar.classList.add("hidden");
                 DOM.telegramAvatar.classList.remove("visible");
                 DOM.avatarLetter?.classList.remove("hidden");
+
+                // Lien Telegram inutilisable : photo de secours via le serveur.
+                if (!state.photoChecked) {
+                    resolveAvatar();
+                }
             };
-            if (photoUrl) {
-                DOM.telegramAvatar.src = photoUrl;
+
+            if (profile.photo_url) {
+                if (DOM.telegramAvatar.getAttribute("src") !== profile.photo_url) {
+                    DOM.telegramAvatar.src = profile.photo_url;
+                }
+
                 DOM.telegramAvatar.classList.remove("hidden");
                 DOM.telegramAvatar.classList.add("visible");
                 DOM.avatarLetter?.classList.add("hidden");
@@ -801,11 +1040,14 @@
                 DOM.avatarLetter?.classList.remove("hidden");
             }
         }
+
         if (DOM.avatarLetter) {
-            DOM.avatarLetter.textContent =
-                getInitials(user || telegramUser);
+            DOM.avatarLetter.textContent = profile.initials;
         }
+
+        updateSplashUser();
     }
+
     /* =====================================================
        LOAD FAVORITES
     ===================================================== */
@@ -1195,7 +1437,8 @@ if (!DOM.pageContainer) {
 
             if (
                 image instanceof HTMLImageElement &&
-                image.classList.contains("shop-cover-img")
+                (image.classList.contains("shop-cover-img") ||
+                    image.closest(".profile-avatar-large"))
             ) {
                 image.remove();
             }
@@ -1825,6 +2068,20 @@ if (!DOM.pageContainer) {
             telegram_id:
                 backendUser.telegram_id ||
                 telegramUser.id,
+            // Avant : `...backendUser` (first_name: null) écrasait le vrai
+            // prénom venu de Telegram.
+            first_name:
+                telegramUser.first_name ||
+                backendUser.first_name ||
+                "",
+            last_name:
+                telegramUser.last_name ||
+                backendUser.last_name ||
+                "",
+            username:
+                telegramUser.username ||
+                backendUser.username ||
+                "",
             nexa_id:
                 backendUser.nexa_id ||
                 readUserCache(telegramUser.id)?.nexa_id ||
@@ -4383,25 +4640,11 @@ if (!DOM.pageContainer) {
             <section class="profile-page">
                 <div class="profile-header">
                     <div class="profile-avatar-large">
+                        <span>${escapeHTML(getProfile().initials)}</span>
                         ${
-                            user.photo_url
-                                ? `
-                                    <img
-                                        src="${escapeHTML(
-                                            user.photo_url
-                                        )}"
-                                        alt="Profil"
-                                    >
-                                `
-                                : `
-                                    <span>
-                                        ${escapeHTML(
-                                            getInitials(
-                                                user
-                                            )
-                                        )}
-                                    </span>
-                                `
+                            getProfile().photo_url
+                                ? `<img src="${escapeHTML(getProfile().photo_url)}" alt="Profil">`
+                                : ""
                         }
                     </div>
                     <div>
@@ -4410,9 +4653,7 @@ if (!DOM.pageContainer) {
                         </span>
                         <h1>
                             ${escapeHTML(
-                                getDisplayName(
-                                    user
-                                )
+                                (getProfile().name || getDisplayName(user))
                             )}
                         </h1>
                         ${
@@ -5529,10 +5770,10 @@ if (!window.__nexmarketDepositRefreshBound) {
 ===================================================== */
 async function initApp() {
     /*
-       1) L'interface s'affiche TOUT DE SUITE (avant tout appel réseau).
-       2) Le splash disparaît après ~1,2 s quoi qu'il arrive : avant, il
-          n'était masqué qu'APRÈS authentification + utilisateur + accueil,
-          donc tant que le serveur dormait il restait des minutes.
+       Le splash reste affiché AU MOINS 10 secondes (SPLASH_MIN_MS) et
+       jusqu'à ce que le profil (nom + photo) et l'accueil soient prêts
+       (60 s maximum). Pendant ce temps il affiche le nom et la photo de
+       l'utilisateur, récupérés auprès de Telegram.
     */
     showApplication();
 
@@ -5545,9 +5786,7 @@ async function initApp() {
         console.error("Erreur interface NexMarket:", error);
     }
 
-    setTimeout(hideSplash, 1200);
-
-    /* Utilisateur en cache (Nexa ID visible immédiatement). */
+    /* Nom + photo connus de Telegram : affichés tout de suite. */
     const telegramUser = getTelegramUser();
 
     if (telegramUser?.id) {
@@ -5564,35 +5803,68 @@ async function initApp() {
         }
     }
 
-    /* Page d'accueil immédiatement (squelette), sans attendre le réseau. */
-    const homeReady = navigateTo("home").catch((error) => {
-        console.error("Erreur accueil NexMarket:", error);
+    updateTelegramProfile();
+    setSplashStatus("Démarrage…");
 
-        if (DOM.pageContainer) {
-            DOM.pageContainer.innerHTML = showEmpty(
-                "NexMarket",
-                "Impossible de charger les annonces pour le moment.",
-                ICONS.help
-            );
+    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    let workDone = false;
+
+    const work = (async () => {
+        setSplashStatus("Connexion au serveur…");
+        wakeBackend();
+
+        /* Accueil en parallèle (squelettes, sans bloquer). */
+        const homeReady = navigateTo("home").catch((error) => {
+            console.error("Erreur accueil NexMarket:", error);
+
+            if (DOM.pageContainer) {
+                DOM.pageContainer.innerHTML = showEmpty(
+                    "NexMarket",
+                    "Impossible de charger les annonces pour le moment.",
+                    ICONS.help
+                );
+            }
+        });
+
+        try {
+            await authenticateTelegram();
+        } catch (error) {
+            console.warn("Authentification NexMarket:", error.message);
+        }
+
+        setSplashStatus("Chargement de ton profil…");
+
+        await Promise.allSettled([loadCurrentUser(), loadWallet()]);
+
+        /* Photo vérifiée (lien Telegram, sinon photo de secours du serveur). */
+        await Promise.race([resolveAvatar(), wait(12000)]);
+
+        setSplashStatus("Chargement des canaux…");
+        await homeReady;
+
+        workDone = true;
+        setSplashStatus("Presque prêt…");
+    })();
+
+    /* Après 10 s, si le serveur n'est toujours pas prêt : barre « en attente ». */
+    wait(SPLASH_MIN_MS).then(() => {
+        if (!workDone) {
+            document
+                .getElementById("splashProgress")
+                ?.classList.add("is-waiting");
+            setSplashStatus("Le serveur se réveille, un instant…");
         }
     });
 
-    /* Réveil du serveur + authentification, en parallèle de l'accueil. */
-    wakeBackend();
-
-    try {
-        await authenticateTelegram();
-    } catch (error) {
-        console.warn("Authentification NexMarket non disponible:", error.message);
-    }
-
-    /* Utilisateur et portefeuille chargés EN PARALLÈLE. */
-    await Promise.allSettled([
-        loadCurrentUser(),
-        loadWallet()
+    await Promise.race([
+        Promise.all([work, wait(SPLASH_MIN_MS)]),
+        wait(SPLASH_MAX_MS)
     ]);
 
-    await homeReady;
+    updateTelegramProfile();
+    setSplashStatus("Bienvenue !");
+    await wait(300);
+    hideSplash();
 
     /* Nexa ID encore absent (réseau lent) : nouvel essai discret. */
     if (!state.user?.nexa_id) {

@@ -18,7 +18,7 @@
         content="NexMarket — La marketplace des canaux Telegram en Afrique."
     >
 
-    <link rel="stylesheet" href="style.css?v=20261101-boutique">
+    <link rel="stylesheet" href="style.css?v=20261101-splash10">
 </head>
 
 <body>
@@ -41,11 +41,20 @@
             La marketplace des canaux Telegram
         </p>
 
-        <div class="splash-loader">
-            <span></span>
-            <span></span>
+        <div class="splash-user is-empty" id="splashUser">
+            <div class="splash-avatar">
+                <span id="splashAvatarLetter">N</span>
+                <img id="splashAvatar" class="is-hidden" alt="">
+            </div>
+            <div class="splash-welcome">Bienvenue</div>
+            <div class="splash-name" id="splashName"></div>
+        </div>
+
+        <div class="splash-progress" id="splashProgress">
             <span></span>
         </div>
+
+        <div class="splash-status" id="splashStatus">Démarrage…</div>
 
     </div>
 
@@ -159,7 +168,7 @@
         class="page-container"
     >
 
-        <!-- Les pages sont injectées par app.js?v=20261101-boutique -->
+        <!-- Les pages sont injectées par app.js?v=20261101-splash10 -->
 
     </main>
 
@@ -456,13 +465,13 @@
      TELEGRAM WEB APP
 ========================================================= -->
 
-<script src="https://telegram.org/js/telegram-web-app.js?v=20261101-boutique"></script>
+<script src="https://telegram.org/js/telegram-web-app.js?v=20261101-splash10"></script>
 
 <!-- =========================================================
      APPLICATION JAVASCRIPT
 ========================================================= -->
 
-<script src="app.js?v=20261101-boutique"></script>
+<script src="app.js?v=20261101-splash10"></script>
 
 </body>
 </html>
