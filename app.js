@@ -11,7 +11,7 @@
         // Backend Render NexMarket
         API_BASE_URL:
             window.NEXMARKET_API_URL ||
-            "https://nexamarket-backend-ffea.onrender.com",
+            "https://nexamarket-backend.onrender.com/api",
         APP_VERSION: "1.0.0",
         ADMIN_PATH: "/admin/",
         ADMIN_TAP_COUNT: 5,
@@ -45,6 +45,11 @@
         searchQuery: "",
         selectedCategory: "all",
         sort: "recent",
+        sellDraft: null,
+        sellError: "",
+        authUser: null,
+        resolvedPhoto: "",
+        photoChecked: false,
         listingsError: "",
         selectedSubscribers: "all",
         selectedPrice: "all"
@@ -138,9 +143,9 @@
        chacun leur délai complet (= plusieurs minutes), on « réveille »
        le serveur une seule fois, en affichant un message clair.
     ===================================================== */
-    const BACKEND = { ready: false, promise: null };
+    const BACKEND = { ready: false, promise: null, lastError: "" };
 
-    function setWakeBanner(visible) {
+    function setWakeBanner(visible, text) {
         let banner = document.getElementById("serverWakeBanner");
 
         if (!visible) {
@@ -152,10 +157,11 @@
             banner = document.createElement("div");
             banner.id = "serverWakeBanner";
             banner.className = "server-wake-banner";
-            banner.textContent =
-                "Réveil du serveur NexMarket… quelques secondes.";
             document.body.appendChild(banner);
         }
+
+        banner.textContent =
+            text || "Réveil du serveur NexMarket… quelques secondes.";
     }
 
     function wakeBackend() {
@@ -184,16 +190,36 @@
 
                     if (response.ok) {
                         BACKEND.ready = true;
+                        BACKEND.lastError = "";
                         setWakeBanner(false);
                         return true;
                     }
+
+                    /* Le serveur répond mais n'est pas prêt : on lit pourquoi
+                       (le mode diagnostic renvoie la cause exacte). */
+                    let reason = "";
+
+                    try {
+                        reason = (await response.json())?.detail || "";
+                    } catch (parseError) {
+                        reason = "";
+                    }
+
+                    BACKEND.lastError =
+                        reason || `Le serveur répond avec le code ${response.status}.`;
                 } catch (error) {
                     clearTimeout(timer);
+                    BACKEND.lastError = "";
                 }
 
-                if (!bannerShown && Date.now() - started > 2500) {
+                if (Date.now() - started > 2500) {
                     bannerShown = true;
-                    setWakeBanner(true);
+                    setWakeBanner(
+                        true,
+                        BACKEND.lastError
+                            ? `Serveur indisponible : ${BACKEND.lastError}`
+                            : undefined
+                    );
                 }
 
                 await new Promise((resolve) => setTimeout(resolve, 1500));
@@ -339,15 +365,40 @@
                 };
             }
             if (!response.ok) {
-                const message =
+                let message =
                     data?.detail ||
                     data?.message ||
                     "Une erreur est survenue.";
-                throw new Error(
-                    typeof message === "string"
-                        ? message
-                        : "Erreur API"
-                );
+
+                /* Erreur de validation FastAPI : liste d'objets. */
+                if (Array.isArray(message)) {
+                    message =
+                        message
+                            .map((item) => item?.msg || "")
+                            .filter(Boolean)
+                            .join(" · ") || "Données invalides.";
+                }
+
+                if (typeof message !== "string") {
+                    message = "Erreur API";
+                }
+
+                const method = String(options.method || "GET").toUpperCase();
+
+                if (response.status === 404 && message === "Not Found") {
+                    /* « Not Found » brut = la ROUTE n'existe pas sur le serveur. */
+                    message =
+                        `Route introuvable sur le serveur (${method} ${endpoint}). ` +
+                        "Le serveur n'est pas à jour ou l'adresse de l'API est incorrecte.";
+                } else if (/<\/?[a-z][\s\S]*>/i.test(message)) {
+                    /* Page HTML (proxy / hébergeur) au lieu d'une réponse API. */
+                    message =
+                        `Le serveur est indisponible (HTTP ${response.status}).`;
+                }
+
+                const httpError = new Error(message.slice(0, 300));
+                httpError.status = response.status;
+                throw httpError;
             }
             return data;
         } catch (error) {
@@ -1953,6 +2004,11 @@ if (!DOM.pageContainer) {
             "nexmarket_session_token",
             sessionToken
         );
+
+        /* La réponse de connexion contient déjà l'utilisateur (dont le
+           Nexa ID) : gardé comme secours si /users/me est lent ou échoue. */
+        state.authUser = result?.user || null;
+
         return result;
     }
     /* =====================================================
@@ -2062,6 +2118,11 @@ if (!DOM.pageContainer) {
                 );
             }
         }
+        /* /users/me indisponible : on prend l'utilisateur de la connexion. */
+        if (!backendUser?.nexa_id && state.authUser) {
+            backendUser = { ...state.authUser, ...backendUser };
+        }
+
         state.user = {
             ...telegramUser,
             ...backendUser,
@@ -3365,7 +3426,14 @@ if (!DOM.pageContainer) {
         showLoading(
             "Préparation de la vente..."
         );
-        await loadMyListings();
+        const [, detectedResult] = await Promise.allSettled([
+            loadMyListings(),
+            apiRequest("/channels/detected")
+        ]);
+        const detectedChannels =
+            detectedResult.status === "fulfilled"
+                ? detectedResult.value?.channels || []
+                : [];
         if (!DOM.pageContainer) {
             return;
         }
@@ -3400,6 +3468,12 @@ if (!DOM.pageContainer) {
                     id="sellForm"
                     class="sell-form"
                 >
+                    ${
+                        state.sellError
+                            ? `<div class="sell-error">${escapeHTML(state.sellError)}</div>`
+                            : ""
+                    }
+                    ${renderDetectedChannels(detectedChannels)}
                     <label>
                         Lien ou @username du canal
                         <input
@@ -3532,6 +3606,11 @@ if (!DOM.pageContainer) {
             </section>
         `;
         setupCategoryPicker();
+        bindDetectedChannels();
+        applySellDraft();
+        /* Affichés une seule fois : une visite ultérieure repart propre. */
+        state.sellError = "";
+        state.sellDraft = null;
         document
             .getElementById(
                 "sellForm"
@@ -3623,6 +3702,188 @@ if (!DOM.pageContainer) {
     /* =====================================================
        CREATE SELLING LISTING
     ===================================================== */
+    /* =====================================================
+       CANAUX DÉTECTÉS (le bot a été ajouté comme administrateur)
+    ===================================================== */
+    function renderDetectedChannels(list) {
+        if (!list.length) {
+            return `
+                <div class="detected-channels">
+                    <strong>Canaux détectés</strong>
+                    <p>
+                        Ajoute le bot NexMarket comme
+                        <b>administrateur</b> de ton canal
+                        (droits : gérer le canal, inviter des
+                        utilisateurs). Il apparaîtra ici
+                        automatiquement, même pour un canal privé.
+                    </p>
+                    <button
+                        type="button"
+                        class="text-button"
+                        data-detected-refresh
+                    >
+                        Actualiser la liste
+                    </button>
+                </div>
+            `;
+        }
+
+        return `
+            <div class="detected-channels">
+                <strong>Canaux détectés</strong>
+                <p>Touche ton canal pour le sélectionner :</p>
+                ${list
+                    .map((channel) => {
+                        const missing = (channel.missing_rights || []).join(", ");
+
+                        return `
+                            <button
+                                type="button"
+                                class="detected-channel ${channel.rights_ok ? "" : "warn"}"
+                                data-detected-id="${escapeHTML(channel.telegram_channel_id)}"
+                                data-detected-title="${escapeHTML(channel.title || "Canal")}"
+                                data-detected-username="${escapeHTML(channel.username || "")}"
+                                data-detected-missing="${escapeHTML(missing)}"
+                            >
+                                <span class="detected-name">
+                                    ${escapeHTML(channel.title || "Canal Telegram")}
+                                </span>
+                                <small>
+                                    ${
+                                        channel.username
+                                            ? "@" + escapeHTML(channel.username)
+                                            : "Canal privé"
+                                    }
+                                </small>
+                                <em>
+                                    ${
+                                        channel.rights_ok
+                                            ? "✔ Tous les droits sont accordés"
+                                            : "⚠ Droit manquant : " + escapeHTML(missing)
+                                    }
+                                </em>
+                            </button>
+                        `;
+                    })
+                    .join("")}
+                <button
+                    type="button"
+                    class="text-button"
+                    data-detected-refresh
+                >
+                    Actualiser la liste
+                </button>
+            </div>
+        `;
+    }
+
+    function captureSellDraft() {
+        const input = document.getElementById("sellUsername");
+
+        state.sellDraft = {
+            username: input?.value || "",
+            channelId: input?.dataset.channelId || "",
+            category: document.getElementById("sellCategory")?.value || "",
+            price: document.getElementById("sellPrice")?.value || "",
+            description:
+                document.getElementById("sellDescription")?.value || ""
+        };
+    }
+
+    function bindDetectedChannels() {
+        const input = document.getElementById("sellUsername");
+
+        document
+            .querySelectorAll("[data-detected-id]")
+            .forEach((button) => {
+                button.addEventListener("click", () => {
+                    const missing = button.dataset.detectedMissing;
+
+                    if (missing) {
+                        showToast(
+                            "Droit manquant",
+                            `Active « ${missing} » pour NexMarket dans les administrateurs du canal, puis actualise la liste.`
+                        );
+                        return;
+                    }
+
+                    document
+                        .querySelectorAll("[data-detected-id]")
+                        .forEach((other) => other.classList.remove("selected"));
+
+                    button.classList.add("selected");
+
+                    const username = button.dataset.detectedUsername;
+
+                    input.value = username
+                        ? `@${username}`
+                        : `🔒 ${button.dataset.detectedTitle}`;
+                    input.dataset.channelId = button.dataset.detectedId;
+                });
+            });
+
+        /* Si l'utilisateur modifie le champ, la sélection est annulée. */
+        input?.addEventListener("input", () => {
+            delete input.dataset.channelId;
+            document
+                .querySelectorAll("[data-detected-id]")
+                .forEach((button) => button.classList.remove("selected"));
+        });
+
+        document
+            .querySelectorAll("[data-detected-refresh]")
+            .forEach((button) => {
+                button.addEventListener("click", () => {
+                    captureSellDraft();
+                    renderSell();
+                });
+            });
+    }
+
+    /* Ce que l'utilisateur avait saisi est conservé quand la publication échoue. */
+    function applySellDraft() {
+        const draft = state.sellDraft;
+
+        if (!draft) {
+            return;
+        }
+
+        const input = document.getElementById("sellUsername");
+
+        if (input) {
+            input.value = draft.username || "";
+
+            if (draft.channelId) {
+                input.dataset.channelId = draft.channelId;
+
+                document
+                    .querySelectorAll("[data-detected-id]")
+                    .forEach((button) => {
+                        button.classList.toggle(
+                            "selected",
+                            button.dataset.detectedId === String(draft.channelId)
+                        );
+                    });
+            }
+        }
+
+        const price = document.getElementById("sellPrice");
+        const description = document.getElementById("sellDescription");
+        const category = document.getElementById("sellCategory");
+        const categoryText = document.getElementById("sellCategoryText");
+
+        if (price) price.value = draft.price || "";
+        if (description) description.value = draft.description || "";
+
+        if (category && draft.category) {
+            category.value = draft.category;
+
+            if (categoryText) {
+                categoryText.textContent = draft.category;
+            }
+        }
+    }
+
     async function handleSellSubmit(
         event
     ) {
@@ -3692,10 +3953,16 @@ if (!DOM.pageContainer) {
                     {
                         method: "POST",
                         body:
-                            JSON.stringify({
-                                username,
-                                description
-                            })
+                            JSON.stringify(
+                                usernameInput?.dataset.channelId
+                                    ? {
+                                          telegram_channel_id: Number(
+                                              usernameInput.dataset.channelId
+                                          ),
+                                          description
+                                      }
+                                    : { username, description }
+                            )
                     }
                 );
             const channel =
@@ -3730,6 +3997,8 @@ if (!DOM.pageContainer) {
                             })
                     }
                 );
+            state.sellDraft = null;
+            state.sellError = "";
             closeModal();
             await loadMyListings();
             showToast(
@@ -3739,6 +4008,16 @@ if (!DOM.pageContainer) {
             );
             await renderSell();
         } catch (error) {
+            /* On garde la saisie et on affiche la raison dans le formulaire. */
+            state.sellDraft = {
+                username,
+                channelId: usernameInput?.dataset.channelId || "",
+                category,
+                price: priceInput?.value || "",
+                description
+            };
+            state.sellError =
+                error.message || "Impossible de publier cette annonce.";
             await renderSell();
             showToast(
                 "Publication impossible",
@@ -5212,11 +5491,18 @@ if (!DOM.pageContainer) {
             window.location.href =
                 CONFIG.ADMIN_PATH;
         } catch (error) {
-            showModalError(
-                "Accès refusé",
-                error.message ||
-                "Code administrateur incorrect."
-            );
+            const message = error.message || "Connexion impossible.";
+            const title = /incorrect/i.test(message)
+                ? "Code incorrect"
+                : error.status === 403
+                ? "Accès refusé"
+                : error.status === 503
+                ? "Configuration du serveur"
+                : error.status === 404
+                ? "Compte introuvable"
+                : "Connexion impossible";
+
+            showModalError(title, message);
         }
     }
     /* =====================================================
