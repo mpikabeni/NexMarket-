@@ -1,6 +1,6 @@
 NexMarket — frontend (corrigé)
 
-Backend API : https://nexamarket-backend.onrender.com/api
+Backend API : https://nexamarket-backend-ffea.onrender.com/api
 
 Paiement : JessiKaPay uniquement (dépôts et retraits). Le prix d'un canal
 est bloqué dans le portefeuille de l'acheteur, puis versé au vendeur

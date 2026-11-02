@@ -11,8 +11,8 @@
         // Backend Render NexMarket
         API_BASE_URL:
             window.NEXMARKET_API_URL ||
-            "https://nexamarket-backend-ffea.onrender.com",
-        APP_VERSION: "1.0.0",
+            "https://nexamarket-backend-ffea.onrender.com/api",
+        APP_VERSION: "1.0.11",
         ADMIN_PATH: "/admin/",
         ADMIN_TAP_COUNT: 5,
         ADMIN_TAP_WINDOW: 2500,
@@ -322,15 +322,6 @@
                 "Authorization"
             ] = `Telegram ${initData}`;
         }
-        const adminToken =
-            sessionStorage.getItem(
-                "nexmarket_admin_token"
-            );
-        if (adminToken) {
-            headers[
-                "X-NexMarket-Admin-Token"
-            ] = adminToken;
-        }
         try {
             const response =
                 await fetch(
@@ -379,6 +370,18 @@
                             .join(" · ") || "Données invalides.";
                 }
 
+                /* Détail structuré {code, message, ...} (ex. accès refusé). */
+                const detailObject =
+                    data?.detail &&
+                    typeof data.detail === "object" &&
+                    !Array.isArray(data.detail)
+                        ? data.detail
+                        : null;
+
+                if (detailObject?.message) {
+                    message = detailObject.message;
+                }
+
                 if (typeof message !== "string") {
                     message = "Erreur API";
                 }
@@ -398,6 +401,12 @@
 
                 const httpError = new Error(message.slice(0, 300));
                 httpError.status = response.status;
+
+                if (detailObject?.code) {
+                    httpError.code = detailObject.code;
+                    httpError.accessInfo = detailObject;
+                }
+
                 throw httpError;
             }
             return data;
@@ -1971,6 +1980,79 @@ if (!DOM.pageContainer) {
     /* =====================================================
        AUTHENTIFICATION TELEGRAM
     ===================================================== */
+    /* =====================================================
+       ACCÈS : bot démarré + canal NEXA rejoint (obligatoire)
+    ===================================================== */
+    const ACCESS_CODES = ["bot_not_started", "channel_required"];
+    const FALLBACK_BOT_URL = "https://t.me/NexaMarketShopbot?start=app";
+    const FALLBACK_CHANNEL_URL = "https://t.me/Nexa_CG";
+    let accessBlockedError = null;
+
+    function openTelegramTarget(url) {
+        const tg = window.Telegram?.WebApp;
+
+        try {
+            if (tg?.openTelegramLink) {
+                tg.openTelegramLink(url);
+                return;
+            }
+        } catch (error) {
+            /* on retombe sur window.open */
+        }
+
+        window.open(url, "_blank");
+    }
+
+    function showAccessGate(info) {
+        const code = info?.code || "bot_not_started";
+        const botUrl = info?.bot_url || FALLBACK_BOT_URL;
+        const channelUrl = info?.channel_url || FALLBACK_CHANNEL_URL;
+
+        document.getElementById("accessGate")?.remove();
+
+        const gate = document.createElement("div");
+        gate.id = "accessGate";
+        gate.className = "access-gate";
+        gate.setAttribute("role", "dialog");
+        gate.setAttribute("aria-modal", "true");
+        gate.innerHTML = `
+            <div class="access-gate-card">
+                <div class="access-gate-icon">🔒</div>
+                <h2 class="access-gate-title"></h2>
+                <p class="access-gate-text"></p>
+                <ol class="access-gate-steps">
+                    <li data-step="bot">Démarre le bot NexMarket</li>
+                    <li data-step="channel">Rejoins le canal NEXA</li>
+                    <li>Reviens ici et appuie sur « J'ai terminé »</li>
+                </ol>
+                <button type="button" class="access-gate-btn primary" data-act="bot">🤖 Démarrer le bot</button>
+                <button type="button" class="access-gate-btn" data-act="channel">📢 Rejoindre le canal NEXA</button>
+                <button type="button" class="access-gate-btn ghost" data-act="retry">✅ J'ai terminé, réessayer</button>
+            </div>`;
+
+        gate.querySelector(".access-gate-title").textContent =
+            code === "channel_required"
+                ? "Rejoins le canal NEXA"
+                : "Démarre d'abord le bot";
+        gate.querySelector(".access-gate-text").textContent =
+            info?.message ||
+            "Pour utiliser NexMarket, démarre le bot puis rejoins notre canal.";
+
+        gate.addEventListener("click", (event) => {
+            const action = event.target.closest("[data-act]")?.dataset.act;
+
+            if (action === "bot") {
+                openTelegramTarget(botUrl);
+            } else if (action === "channel") {
+                openTelegramTarget(channelUrl);
+            } else if (action === "retry") {
+                window.location.reload();
+            }
+        });
+
+        document.body.appendChild(gate);
+    }
+
     async function authenticateTelegram() {
         const initData =
             getTelegramInitData();
@@ -1979,16 +2061,30 @@ if (!DOM.pageContainer) {
                 "NexMarket doit être ouvert depuis Telegram."
             );
         }
+        /* Déjà refusé pendant cette ouverture : inutile de redemander. */
+        if (accessBlockedError) {
+            throw accessBlockedError;
+        }
         /* Route d'authentification Telegram du backend. */
-        const result = await apiRequest(
-            "/auth/telegram",
-            {
-                method: "POST",
-                body: JSON.stringify({
-                    init_data: initData
-                })
+        let result;
+        try {
+            result = await apiRequest(
+                "/auth/telegram",
+                {
+                    method: "POST",
+                    body: JSON.stringify({
+                        init_data: initData
+                    })
+                }
+            );
+        } catch (error) {
+            if (ACCESS_CODES.includes(error?.code)) {
+                accessBlockedError = error;
+                sessionStorage.removeItem("nexmarket_session_token");
+                showAccessGate(error.accessInfo);
             }
-        );
+            throw error;
+        }
         const sessionToken =
             result?.session_token ||
             result?.access_token ||

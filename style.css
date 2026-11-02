@@ -2715,3 +2715,34 @@ body.category-picker-open {
   background:rgba(255,93,115,.1);border:1px solid rgba(255,93,115,.35);
   color:#ffb3bd;font-size:12px;line-height:1.5
 }
+
+/* =====================================================
+   ACCÈS OBLIGATOIRE : démarrer le bot + rejoindre le canal
+===================================================== */
+.access-gate{
+  position:fixed;inset:0;z-index:100000;
+  display:flex;align-items:center;justify-content:center;
+  padding:20px;overflow-y:auto;
+  background:radial-gradient(circle at 50% -10%,rgba(139,92,246,.25),transparent 45%),var(--bg);
+}
+.access-gate-card{
+  width:min(100%,390px);padding:28px 22px;text-align:center;
+  background:var(--surface);border:1px solid var(--border-active);
+  border-radius:var(--radius);box-shadow:var(--shadow);
+}
+.access-gate-icon{font-size:42px;margin-bottom:10px}
+.access-gate-title{font-size:21px;font-weight:800;margin-bottom:8px}
+.access-gate-text{color:var(--text-soft);font-size:14px;line-height:1.5;margin-bottom:14px}
+.access-gate-steps{
+  text-align:left;color:var(--text-soft);font-size:13px;line-height:1.7;
+  margin:0 0 18px 20px;
+}
+.access-gate-btn{
+  display:block;width:100%;padding:14px;margin-top:10px;
+  border-radius:14px;font-weight:700;font-size:15px;
+  background:var(--surface-3);color:var(--text);border:1px solid var(--border);
+}
+.access-gate-btn.primary{
+  background:linear-gradient(135deg,var(--purple),var(--purple-dark));border-color:transparent;
+}
+.access-gate-btn.ghost{background:transparent;color:var(--purple-light)}
