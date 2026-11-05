@@ -2,16 +2,227 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="refresh" content="0; url=admin.html">
-<title>NexMarket — Administration</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#08080c">
+<title>NexMarket Admin</title>
+<link rel="stylesheet" href="panel.css?v=20261102">
 </head>
 <body>
-<!--
-  Ancienne maquette supprimée : ses éléments (authScreen, modalContent...)
-  ne correspondaient à aucun code de admin.js, la page était inutilisable.
-  La console fonctionnelle est admin.html.
--->
-<script>location.replace('admin.html');</script>
+
+<!-- ===================== CONNEXION ===================== -->
+<div id="authScreen" class="auth-screen">
+  <div class="auth-box">
+    <div class="auth-logo"><div class="logo-mark"><img src="../logo.png" alt="NexMarket"></div></div>
+    <h1>NexMarket</h1>
+    <p class="auth-subtitle">Administration NEXA</p>
+    <div class="auth-status" id="authStatus">Vérification de la session…</div>
+    <form id="authForm" class="auth-form hidden" autocomplete="off">
+      <input id="authCode" type="password" placeholder="Code administrateur" autocomplete="off" required>
+      <button id="authLoginButton" class="primary-button" type="submit">Se connecter</button>
+      <p class="auth-hint">Ouvre cette page depuis la Mini App Telegram : le serveur contrôle ton compte.</p>
+    </form>
+  </div>
+</div>
+
+<!-- ===================== APPLICATION ===================== -->
+<div id="adminApp" class="admin-app hidden">
+
+  <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="brand">
+        <div class="brand-logo">N</div>
+        <div class="brand-text"><strong>NexMarket</strong><span>Administration</span></div>
+      </div>
+      <button id="closeSidebar" class="icon-button mobile-only" type="button" aria-label="Fermer">×</button>
+    </div>
+
+    <nav class="sidebar-nav">
+      <button class="nav-item active" data-page="dashboard" type="button"><span class="nav-icon">⌂</span><span>Vue d'ensemble</span></button>
+      <button class="nav-item" data-page="verifications" type="button"><span class="nav-icon">✓</span><span>Vérifications</span><span class="nav-badge" id="pendingListingsBadge">0</span></button>
+      <button class="nav-item" data-page="transactions" type="button"><span class="nav-icon">↔</span><span>Transactions</span><span class="nav-badge" id="activeTransactionsBadge">0</span></button>
+      <button class="nav-item" data-page="channels" type="button"><span class="nav-icon">▣</span><span>Canaux</span></button>
+      <button class="nav-item" data-page="users" type="button"><span class="nav-icon">◉</span><span>Utilisateurs</span></button>
+      <button class="nav-item" data-page="reports" type="button"><span class="nav-icon">!</span><span>Signalements</span><span class="nav-badge" id="reportsBadge">0</span></button>
+      <button class="nav-item" data-page="messages" type="button"><span class="nav-icon">▱</span><span>Messages</span></button>
+      <button class="nav-item" data-page="announcements" type="button"><span class="nav-icon">➤</span><span>Annonces</span></button>
+      <button class="nav-item" data-page="withdrawals" type="button"><span class="nav-icon">↧</span><span>Retraits à vérifier</span></button>
+      <button class="nav-item" data-page="admins" type="button"><span class="nav-icon">◆</span><span>Administrateurs</span></button>
+      <button class="nav-item" data-page="wallet" type="button"><span class="nav-icon">◈</span><span>Portefeuille NEXA</span></button>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="admin-profile">
+        <div class="admin-avatar" id="adminAvatar">N</div>
+        <div class="admin-profile-info"><strong id="adminName">Administrateur</strong><span>NEXA</span></div>
+      </div>
+      <button id="logoutButton" class="logout-button" type="button"><span>↪</span> Déconnexion</button>
+    </div>
+  </aside>
+
+  <main class="main-content">
+    <header class="topbar">
+      <div class="topbar-left">
+        <button id="openSidebar" class="icon-button mobile-only" type="button" aria-label="Menu">☰</button>
+        <div>
+          <h1 id="pageTitle">Vue d'ensemble</h1>
+          <p id="pageSubtitle">Gestion de NexMarket</p>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <button id="refreshButton" class="topbar-button" type="button" title="Actualiser">↻</button>
+        <div class="live-status"><span class="status-dot"></span><span>En ligne</span></div>
+      </div>
+    </header>
+
+    <section id="pageContainer" class="page-container">
+
+      <!-- ============ VUE D'ENSEMBLE ============ -->
+      <section class="admin-page active" data-section="dashboard">
+        <div class="welcome-panel">
+          <div>
+            <span class="eyebrow">NEXA • NEXMARKET</span>
+            <h2 id="welcomeTitle">Bonjour</h2>
+            <p>Voici l'activité de la marketplace en temps réel.</p>
+          </div>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-card"><div class="stat-icon">◉</div><div><strong id="statUsers">0</strong><span>Utilisateurs</span></div></div>
+          <div class="stat-card"><div class="stat-icon">✓</div><div><strong id="statPendingListings">0</strong><span>Annonces à valider</span></div></div>
+          <div class="stat-card"><div class="stat-icon">↔</div><div><strong id="statTransactions">0</strong><span>Transactions en cours</span></div></div>
+          <div class="stat-card"><div class="stat-icon">◈</div><div><strong id="statRevenue">0</strong><span>Commissions (XAF)</span></div></div>
+        </div>
+
+        <div class="panel-grid">
+          <div class="panel">
+            <div class="panel-header"><h3>Annonces à valider</h3><button class="text-button" data-goto="verifications" type="button">Voir tout</button></div>
+            <div class="cards-list" id="dashboardListings"></div>
+          </div>
+          <div class="panel">
+            <div class="panel-header"><h3>Transactions récentes</h3><button class="text-button" data-goto="transactions" type="button">Voir tout</button></div>
+            <div class="cards-list" id="dashboardTransactions"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ VÉRIFICATIONS ============ -->
+      <section class="admin-page" data-section="verifications">
+        <div class="section-header">
+          <div><h2>Annonces à valider</h2><p>Examine les photos de preuve puis approuve ou refuse.</p></div>
+        </div>
+        <div class="filter-bar"><input id="listingSearch" class="search-input" type="search" placeholder="Rechercher un canal, un vendeur…"></div>
+        <div class="table-panel"><div class="table-wrapper"><table>
+          <thead><tr><th>#</th><th>Canal</th><th>Vendeur</th><th>Prix</th><th>Abonnés</th><th>Preuves</th><th>Date</th><th></th></tr></thead>
+          <tbody id="listingsTableBody"></tbody>
+        </table></div></div>
+      </section>
+
+      <!-- ============ TRANSACTIONS ============ -->
+      <section class="admin-page" data-section="transactions">
+        <div class="section-header"><div><h2>Transactions</h2><p>Transferts de canaux, litiges et remboursements.</p></div></div>
+        <div class="filter-bar">
+          <input id="transactionSearch" class="search-input" type="search" placeholder="Référence, montant…">
+          <select id="transactionStatusFilter" class="select-input">
+            <option value="">Tous les statuts</option>
+            <option value="waiting_admin">En attente d'un admin</option>
+            <option value="transfer_started">Transfert en cours</option>
+            <option value="protection_period">Période de protection</option>
+            <option value="disputed">Litige</option>
+            <option value="completed">Terminées</option>
+            <option value="refunded">Remboursées</option>
+            <option value="cancelled">Annulées</option>
+          </select>
+        </div>
+        <div class="table-panel"><div class="table-wrapper"><table>
+          <thead><tr><th>Référence</th><th>Statut</th><th>Montant</th><th>Vendeur reçoit</th><th>Date</th><th></th></tr></thead>
+          <tbody id="transactionsTableBody"></tbody>
+        </table></div></div>
+      </section>
+
+      <!-- ============ CANAUX ============ -->
+      <section class="admin-page" data-section="channels">
+        <div class="section-header"><div><h2>Canaux</h2><p>Tous les canaux enregistrés. Tu peux en supprimer.</p></div></div>
+        <div class="filter-bar"><input id="channelSearch" class="search-input" type="search" placeholder="Rechercher un canal…"></div>
+        <div class="table-panel"><div class="table-wrapper"><table>
+          <thead><tr><th>Canal</th><th>Type</th><th>Abonnés</th><th>Statut</th><th>Bot admin</th><th></th></tr></thead>
+          <tbody id="channelsTableBody"></tbody>
+        </table></div></div>
+      </section>
+
+      <!-- ============ UTILISATEURS ============ -->
+      <section class="admin-page" data-section="users">
+        <div class="section-header"><div><h2>Utilisateurs</h2><p>Bloquer un compte ou le retirer de la marketplace.</p></div></div>
+        <div class="filter-bar"><input id="userSearch" class="search-input" type="search" placeholder="Nom, @username, Nexa ID, Telegram ID…"></div>
+        <div class="table-panel"><div class="table-wrapper"><table>
+          <thead><tr><th>Utilisateur</th><th>Nexa ID</th><th>Telegram ID</th><th>Statut</th><th>Inscrit le</th><th></th></tr></thead>
+          <tbody id="usersTableBody"></tbody>
+        </table></div></div>
+      </section>
+
+      <!-- ============ SIGNALEMENTS ============ -->
+      <section class="admin-page" data-section="reports">
+        <div class="section-header"><div><h2>Signalements</h2><p>Clore un signalement ne rembourse personne : passe par la transaction.</p></div></div>
+        <div class="cards-list" id="reportsList"></div>
+      </section>
+
+      <!-- ============ MESSAGES ============ -->
+      <section class="admin-page" data-section="messages">
+        <div class="section-header"><div><h2>Messages</h2><p>Dernières discussions des transactions.</p></div></div>
+        <div class="cards-list" id="messagesList"></div>
+      </section>
+
+      <!-- ============ ANNONCES ============ -->
+      <section class="admin-page" data-section="announcements">
+        <div class="section-header"><div><h2>Envoyer une annonce</h2><p>Message envoyé par le bot Telegram aux utilisateurs.</p></div></div>
+        <div class="panel announce-panel">
+          <label class="field"><span>Message</span>
+            <textarea id="announceText" rows="6" maxlength="3500" placeholder="Ex. : Nouvelle fonctionnalité disponible sur NexMarket…"></textarea>
+          </label>
+          <div class="announce-meta"><span id="announceCount">0 / 3500</span></div>
+          <div class="announce-actions">
+            <button id="announceTest" class="secondary-button" type="button">Envoyer un test (à moi)</button>
+            <button id="announceSend" class="primary-button" type="button">Envoyer à tous</button>
+          </div>
+          <p class="auth-hint">Seuls les utilisateurs ayant déjà démarré le bot le reçoivent. Un récapitulatif t'est envoyé à la fin.</p>
+        </div>
+      </section>
+
+      <!-- ============ RETRAITS ============ -->
+      <section class="admin-page" data-section="withdrawals">
+        <div class="section-header"><div><h2>Retraits à vérifier</h2><p>Statut inconnu (délai dépassé) : vérifie dans JessiKaPay puis tranche.</p></div></div>
+        <div class="table-panel"><div class="table-wrapper"><table>
+          <thead><tr><th>Référence</th><th>Montant</th><th>Compte JP</th><th>Note</th><th>Date</th><th></th></tr></thead>
+          <tbody id="withdrawalsTableBody"></tbody>
+        </table></div></div>
+      </section>
+
+      <!-- ============ ADMINISTRATEURS ============ -->
+      <section class="admin-page" data-section="admins">
+        <div class="section-header"><div><h2>Administrateurs</h2><p>Comptes autorisés à gérer NexMarket.</p></div></div>
+        <div class="cards-list" id="adminsList"></div>
+      </section>
+
+      <!-- ============ PORTEFEUILLE ============ -->
+      <section class="admin-page" data-section="wallet">
+        <div class="section-header"><div><h2>Portefeuille NEXA</h2><p>Commissions encaissées par la plateforme.</p></div></div>
+        <div class="stats-grid" id="walletStats"></div>
+      </section>
+
+    </section>
+  </main>
+</div>
+
+<!-- ===================== MODALE + TOAST ===================== -->
+<div class="modal-overlay hidden" id="modalOverlay"></div>
+<div class="admin-modal hidden" id="adminModal" role="dialog" aria-modal="true">
+  <button class="modal-close" id="closeModal" type="button" aria-label="Fermer">×</button>
+  <div id="modalContent"></div>
+</div>
+<div class="toast hidden" id="toast"><span id="toastMessage"></span></div>
+
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="panel.js?v=20261102"></script>
 </body>
 </html>
