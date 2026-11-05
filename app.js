@@ -3629,6 +3629,20 @@ if (!DOM.pageContainer) {
                         >
                             Numéro JessiKaPay
                         </label>
+                        <div class="jp-start-hint">
+                            <p>
+                                Pas encore d'ID ? Démarre d'abord le bot
+                                <b>@JessiKaPayBot</b> : il te donne ton ID
+                                <b>JP-…</b>, indispensable pour retirer.
+                            </p>
+                            <button
+                                type="button"
+                                class="jp-start-button"
+                                data-open-jessikapay
+                            >
+                                ▶ Démarrer @JessiKaPayBot
+                            </button>
+                        </div>
                         <div class="jp-lookup-row">
                             <input
                                 id="withdrawPhone"
@@ -6864,6 +6878,7 @@ async function initApp() {
         setupHeader();
         setupBottomNavigation();
         setupModal();
+        setupBackAndTop();
     } catch (error) {
         console.error("Erreur interface NexMarket:", error);
     }
@@ -6960,6 +6975,158 @@ async function initApp() {
         }, 4000);
     }
 }
+    /* =====================================================
+       RETOUR EN HAUT / BOUTON RETOUR
+       - bouton « Retour » en haut de chaque page (sauf l'accueil)
+       - bouton natif Telegram (flèche en haut à gauche)
+       - bouton « remonter » flottant quand on a défilé
+       - la page repart en haut à chaque changement de page
+    ===================================================== */
+    const NAV_HISTORY = { stack: [], last: null, goingBack: false };
+
+    function isModalOpen() {
+        return Boolean(
+            DOM.modalContainer &&
+            !DOM.modalContainer.classList.contains("hidden")
+        );
+    }
+
+    async function goBack() {
+        if (isModalOpen()) {
+            closeModal();
+            return;
+        }
+        const current = state.currentPage;
+        let target = NAV_HISTORY.stack.pop() || "home";
+        if (target === current) {
+            target = NAV_HISTORY.stack.pop() || "home";
+        }
+        NAV_HISTORY.goingBack = true;
+        await navigateTo(target);
+        window.scrollTo(0, 0);
+    }
+
+    function openJessiKaPayBot() {
+        const url = "https://t.me/JessiKaPayBot";
+        if (tg?.openTelegramLink) {
+            tg.openTelegramLink(url);
+        } else {
+            window.open(url, "_blank", "noopener");
+        }
+    }
+
+    function syncTelegramBackButton() {
+        const button = tg?.BackButton;
+        if (!button) {
+            return;
+        }
+        if (isModalOpen() || state.currentPage !== "home") {
+            button.show();
+        } else {
+            button.hide();
+        }
+    }
+
+    function decoratePage() {
+        const page = state.currentPage;
+
+        if (page !== NAV_HISTORY.last) {
+            if (!NAV_HISTORY.goingBack && NAV_HISTORY.last) {
+                NAV_HISTORY.stack.push(NAV_HISTORY.last);
+                if (NAV_HISTORY.stack.length > 20) {
+                    NAV_HISTORY.stack.shift();
+                }
+            }
+            NAV_HISTORY.goingBack = false;
+            NAV_HISTORY.last = page;
+            window.scrollTo(0, 0);
+        }
+
+        const container = DOM.pageContainer;
+
+        if (
+            container &&
+            page !== "home" &&
+            container.firstElementChild &&
+            !container.querySelector(".page-back-button")
+        ) {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "page-back-button";
+            button.setAttribute("aria-label", "Retour");
+            button.innerHTML =
+                '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+                'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+                '<path d="m15 18-6-6 6-6"></path></svg><span>Retour</span>';
+            button.addEventListener("click", goBack);
+            container.insertBefore(button, container.firstChild);
+        }
+
+        syncTelegramBackButton();
+    }
+
+    function setupBackAndTop() {
+        if (DOM.pageContainer) {
+            new MutationObserver(decoratePage).observe(
+                DOM.pageContainer,
+                { childList: true }
+            );
+        }
+
+        if (DOM.modalContainer) {
+            new MutationObserver(syncTelegramBackButton).observe(
+                DOM.modalContainer,
+                { attributes: true, attributeFilter: ["class"] }
+            );
+        }
+
+        if (tg?.BackButton) {
+            tg.BackButton.onClick(goBack);
+        }
+
+        /* Un seul écouteur pour le bouton « Démarrer @JessiKaPayBot ». */
+        document.addEventListener("click", (event) => {
+            if (event.target.closest("[data-open-jessikapay]")) {
+                openJessiKaPayBot();
+            }
+        });
+
+        const topButton = document.createElement("button");
+        topButton.type = "button";
+        topButton.id = "scrollTopButton";
+        topButton.className = "scroll-top-button";
+        topButton.setAttribute("aria-label", "Remonter en haut");
+        topButton.innerHTML =
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+            'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+            '<path d="m6 15 6-6 6 6"></path></svg>';
+        topButton.addEventListener("click", () => {
+            window.scrollTo({ top: 0, behavior: "smooth" });
+        });
+        (DOM.app || document.body).appendChild(topButton);
+
+        let ticking = false;
+        window.addEventListener(
+            "scroll",
+            () => {
+                if (ticking) {
+                    return;
+                }
+                ticking = true;
+                requestAnimationFrame(() => {
+                    topButton.classList.toggle(
+                        "visible",
+                        window.scrollY > 360
+                    );
+                    ticking = false;
+                });
+            },
+            { passive: true }
+        );
+
+        decoratePage();
+    }
+
     /* =====================================================
        DOM READY
     ===================================================== */
