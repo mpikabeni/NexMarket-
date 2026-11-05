@@ -259,6 +259,7 @@
     reports: ["Signalements", "Problèmes signalés par les utilisateurs", loadReports],
     messages: ["Messages", "Discussions des transactions", loadMessages],
     announcements: ["Annonces", "Message à tous les utilisateurs", async () => {}],
+    deposits: ["Dépôts", "Suivi et crédit des dépôts", loadDeposits],
     withdrawals: ["Retraits à vérifier", "Statut inconnu", loadWithdrawals],
     admins: ["Administrateurs", "Comptes autorisés", loadAdmins],
     wallet: ["Portefeuille NEXA", "Commissions de la plateforme", loadWallet]
@@ -725,6 +726,40 @@
       : `<tr><td colspan="6"><div class="empty-state">Aucun retrait à vérifier.</div></td></tr>`;
   }
 
+  const DEPOSIT_LABELS = {
+    pending: ["En attente", "warn"], paid: ["Payé", "ok"], failed: ["Échoué", "bad"],
+    expired: ["Expiré", "bad"], cancelled: ["Annulé", "bad"], rejected: ["Refusé", "bad"],
+    amount_mismatch: ["Montant incohérent", "warn"]
+  };
+
+  async function loadDeposits() {
+    const filter = $("#depositStatusFilter").value;
+    const data = await api(`/admin/deposits${filter ? `?status_filter=${encodeURIComponent(filter)}` : ""}`);
+    const rows = data.deposits || [];
+    $("#depositsTableBody").innerHTML = rows.length
+      ? rows.map((d) => {
+          const [label, tone] = DEPOSIT_LABELS[d.status] || [d.status, ""];
+          const open = d.status !== "paid";
+          return `
+          <tr>
+            <td><strong>${esc(d.reference)}</strong><small>${esc(d.country || "")} ${esc(d.phone || "")}</small></td>
+            <td>${esc(d.user)}<small>${esc(d.nexa_id || "")}</small></td>
+            <td>${fmtMoney(d.amount, d.currency)}</td>
+            <td><span class="badge ${tone}">${esc(label)}</span>${d.failure_reason ? `<small>${esc(d.failure_reason)}</small>` : ""}</td>
+            <td>${fmtDate(d.created_at)}</td>
+            <td class="actions"><span class="btn-row">
+              ${open ? `<button class="btn" data-act="recheck-deposit" data-id="${d.id}" type="button">Revérifier</button>
+              <button class="btn ok" data-act="credit-deposit" data-id="${d.id}" type="button">Créditer</button>` : ""}
+            </span></td>
+          </tr>`;
+        }).join("")
+      : `<tr><td colspan="6"><div class="empty-state">Aucun dépôt.</div></td></tr>`;
+  }
+
+  document.addEventListener("change", (event) => {
+    if (event.target.id === "depositStatusFilter") loadDeposits().catch((e) => toast(e.message, true));
+  });
+
   /* ================= ACTIONS (clics) ================= */
   document.addEventListener("click", (event) => {
     const target = event.target.closest("[data-act]");
@@ -779,6 +814,27 @@
           });
           toast("Signalement clos.");
           await loadReports();
+        });
+        break;
+
+      case "recheck-deposit":
+        run(target, async () => {
+          const result = await api(`/admin/deposits/${id}/recheck`, { method: "POST" });
+          openModal(`
+            <h3 class="modal-title">Réponse de JessiKaPay</h3>
+            <p class="modal-sub">Statut NexMarket : <strong>${esc(result.status)}</strong>${result.paid ? " — wallet crédité." : ""}</p>
+            <pre style="white-space:pre-wrap;word-break:break-word;background:var(--surface-2);padding:12px;border-radius:12px;font-size:11.5px">${esc(JSON.stringify(result.provider, null, 2))}</pre>`);
+          await loadDeposits();
+        });
+        break;
+
+      case "credit-deposit":
+        run(target, async () => {
+          if (!confirm("As-tu VÉRIFIÉ dans JessiKaPay que ce paiement a bien été reçu ?\nLe montant sera ajouté au solde de l'utilisateur (une seule fois).")) return;
+          const note = (prompt("Note (facultatif) :") || "").trim();
+          await api(`/admin/deposits/${id}/credit`, { method: "POST", body: JSON.stringify({ note }) });
+          toast("Dépôt crédité.");
+          await loadDeposits();
         });
         break;
 

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#08080c">
 <title>NexMarket Admin</title>
-<link rel="stylesheet" href="panel.css?v=20261102">
+<link rel="stylesheet" href="panel.css?v=20261105-dep">
 </head>
 <body>
 
@@ -47,6 +47,7 @@
       <button class="nav-item" data-page="reports" type="button"><span class="nav-icon">!</span><span>Signalements</span><span class="nav-badge" id="reportsBadge">0</span></button>
       <button class="nav-item" data-page="messages" type="button"><span class="nav-icon">▱</span><span>Messages</span></button>
       <button class="nav-item" data-page="announcements" type="button"><span class="nav-icon">➤</span><span>Annonces</span></button>
+      <button class="nav-item" data-page="deposits" type="button"><span class="nav-icon">↥</span><span>Dépôts</span></button>
       <button class="nav-item" data-page="withdrawals" type="button"><span class="nav-icon">↧</span><span>Retraits à vérifier</span></button>
       <button class="nav-item" data-page="admins" type="button"><span class="nav-icon">◆</span><span>Administrateurs</span></button>
       <button class="nav-item" data-page="wallet" type="button"><span class="nav-icon">◈</span><span>Portefeuille NEXA</span></button>
@@ -189,6 +190,25 @@
         </div>
       </section>
 
+      <!-- ============ DÉPÔTS ============ -->
+      <section class="admin-page" data-section="deposits">
+        <div class="section-header"><div><h2>Dépôts</h2><p>Un dépôt payé mais non crédité ? « Revérifier » montre la réponse de JessiKaPay ; « Créditer » ajoute le montant après vérification dans JessiKaPay.</p></div></div>
+        <div class="filter-bar">
+          <select id="depositStatusFilter" class="select-input">
+            <option value="">Tous les statuts</option>
+            <option value="pending">En attente</option>
+            <option value="paid">Payés</option>
+            <option value="failed">Échoués</option>
+            <option value="expired">Expirés</option>
+            <option value="amount_mismatch">Montant incohérent</option>
+          </select>
+        </div>
+        <div class="table-panel"><div class="table-wrapper"><table>
+          <thead><tr><th>Référence</th><th>Utilisateur</th><th>Montant</th><th>Statut</th><th>Date</th><th></th></tr></thead>
+          <tbody id="depositsTableBody"></tbody>
+        </table></div></div>
+      </section>
+
       <!-- ============ RETRAITS ============ -->
       <section class="admin-page" data-section="withdrawals">
         <div class="section-header"><div><h2>Retraits à vérifier</h2><p>Statut inconnu (délai dépassé) : vérifie dans JessiKaPay puis tranche.</p></div></div>
@@ -223,6 +243,6 @@
 <div class="toast hidden" id="toast"><span id="toastMessage"></span></div>
 
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script src="panel.js?v=20261102"></script>
+<script src="panel.js?v=20261105-dep"></script>
 </body>
 </html>
