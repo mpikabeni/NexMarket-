@@ -800,9 +800,11 @@
             errorBox.querySelector(
                 "strong"
             );
+        /* « div > span » tombait sur le petit point rouge
+           (.modal-error-dot) : le message s'affichait hors de la boîte. */
         const span =
             errorBox.querySelector(
-                "div > span"
+                ":scope > div > span"
             );
         if (strong) {
             strong.textContent =
