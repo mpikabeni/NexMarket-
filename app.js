@@ -46,6 +46,8 @@
         selectedCategory: "all",
         sort: "recent",
         sellDraft: null,
+        sellProofs: [],
+        sellChannelType: "public",
         sellError: "",
         authUser: null,
         resolvedPhoto: "",
@@ -271,7 +273,7 @@
         const controller =
             new AbortController();
         const slowCall =
-            /^\/(deposits|withdrawals|channels)/.test(endpoint) &&
+            /^\/(deposits|withdrawals|channels|listings)/.test(endpoint) &&
             String(options.method || "GET").toUpperCase() === "POST";
         const timeout =
             setTimeout(
@@ -540,6 +542,9 @@
        SVG ICONS
     ===================================================== */
     const ICONS = {
+        eye: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>`,
+        eyeOff: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.9 17.9A10.6 10.6 0 0 1 12 19C5.6 19 2 12 2 12a18.5 18.5 0 0 1 5.1-5.9M9.9 5.2A10 10 0 0 1 12 5c6.4 0 10 7 10 7a18.6 18.6 0 0 1-2.2 3.2M1 1l22 22"/><path d="M14.1 14.1a3 3 0 1 1-4.2-4.2"/></svg>`,
+        copy: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`,
         search: `
             <svg viewBox="0 0 24 24"
                  fill="none"
@@ -1210,6 +1215,190 @@
     /* =====================================================
        PAGE HOME
     ===================================================== */
+    /* =====================================================
+       STATISTIQUES PUBLIQUES (confiance) — compteurs animés
+    ===================================================== */
+    const STATS_CACHE_KEY = "nexmarket_public_stats_v1";
+
+    const TRUST_ICONS = {
+        shield: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>`,
+        store: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l1.5-5h15L21 9"/><path d="M3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0"/><path d="M5 12v8h14v-8"/></svg>`,
+        sync: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-15-6.7L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 15 6.7L21 16"/><path d="M16 16h5v5"/></svg>`
+    };
+
+    function readStatsCache() {
+        try {
+            return JSON.parse(localStorage.getItem(STATS_CACHE_KEY) || "null");
+        } catch (error) {
+            return null;
+        }
+    }
+
+    async function loadPublicStats() {
+        try {
+            const data = await apiRequest("/stats/public");
+
+            try {
+                localStorage.setItem(STATS_CACHE_KEY, JSON.stringify(data));
+            } catch (error) {
+                /* stockage indisponible : sans conséquence */
+            }
+
+            return data;
+        } catch (error) {
+            return readStatsCache();
+        }
+    }
+
+    function renderTrustSection() {
+        const marquee = [
+            "Fonds bloqués jusqu'à la livraison",
+            "Vérification de chaque canal",
+            "Support administrateur",
+            "Paiements JessiKaPay sécurisés",
+            "Litiges arbitrés"
+        ];
+
+        const track = marquee
+            .concat(marquee)
+            .map((text) => `<span>${escapeHTML(text)}</span>`)
+            .join("");
+
+        const card = (index, icon, key, label) => `
+            <div class="trust-card" style="--i:${index}">
+                <div class="trust-icon">${icon}</div>
+                <strong class="trust-number" data-stat="${key}">0</strong>
+                <span class="trust-label">${label}</span>
+            </div>
+        `;
+
+        return `
+            <section class="trust-section" id="trustSection">
+                <div class="trust-orbs" aria-hidden="true">
+                    <span></span><span></span><span></span>
+                </div>
+                <div class="trust-head">
+                    <span class="live-pill"><i></i> EN DIRECT</span>
+                    <h2>NexMarket en chiffres</h2>
+                    <p>Des transactions réelles, protégées par séquestre.</p>
+                </div>
+                <div class="trust-grid">
+                    ${card(0, TRUST_ICONS.shield, "completed_sales", "Ventes réalisées")}
+                    ${card(1, TRUST_ICONS.store, "available_channels", "Canaux disponibles")}
+                    ${card(2, TRUST_ICONS.sync, "active_transactions", "Transactions en cours")}
+                </div>
+                <div class="trust-strip">
+                    <div><b class="trust-number" data-stat="members">0</b><span>membres</span></div>
+                    <div><b class="trust-number" data-stat="volume" data-format="compact">0</b><span>XAF échangés</span></div>
+                </div>
+                <div class="trust-marquee" aria-hidden="true">
+                    <div class="trust-marquee-track">${track}</div>
+                </div>
+            </section>
+        `;
+    }
+
+    function formatStatValue(element, value) {
+        return element.dataset.format === "compact"
+            ? formatCompact(value)
+            : formatNumber(Math.round(value));
+    }
+
+    function countUp(element, target) {
+        const from = Number(element.dataset.value || 0);
+        const to = Number(target) || 0;
+
+        element.dataset.value = String(to);
+
+        const reduced = window.matchMedia?.(
+            "(prefers-reduced-motion: reduce)"
+        )?.matches;
+
+        if (reduced || from === to) {
+            element.textContent = formatStatValue(element, to);
+            return;
+        }
+
+        const duration = 1700;
+        const started = performance.now();
+
+        element.classList.add("bump");
+
+        const step = (now) => {
+            const progress = Math.min(1, (now - started) / duration);
+            /* easeOutExpo : démarre vite, ralentit à la fin */
+            const eased = progress === 1 ? 1 : 1 - Math.pow(2, -10 * progress);
+
+            element.textContent = formatStatValue(
+                element,
+                from + (to - from) * eased
+            );
+
+            if (progress < 1) {
+                requestAnimationFrame(step);
+            } else {
+                setTimeout(() => element.classList.remove("bump"), 500);
+            }
+        };
+
+        requestAnimationFrame(step);
+    }
+
+    let trustTimer = null;
+
+    function initTrustSection() {
+        const section = document.getElementById("trustSection");
+
+        if (!section) {
+            return;
+        }
+
+        const apply = (data) => {
+            if (!data) {
+                return;
+            }
+
+            section.querySelectorAll("[data-stat]").forEach((element) => {
+                countUp(element, data[element.dataset.stat] || 0);
+            });
+        };
+
+        const start = async () => {
+            section.classList.add("in-view");
+            apply(await loadPublicStats());
+
+            /* Mise à jour discrète toutes les 30 s tant que la page est ouverte. */
+            clearInterval(trustTimer);
+            trustTimer = setInterval(async () => {
+                if (
+                    !document.getElementById("trustSection") ||
+                    document.visibilityState !== "visible"
+                ) {
+                    return;
+                }
+
+                apply(await loadPublicStats());
+            }, 30000);
+        };
+
+        if (!("IntersectionObserver" in window)) {
+            start();
+            return;
+        }
+
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries.some((entry) => entry.isIntersecting)) {
+                    observer.disconnect();
+                    start();
+                }
+            },
+            { threshold: 0.2 }
+        );
+
+        observer.observe(section);
+    }
+
     async function renderHome() {
         state.currentPage = "home";
 if (!DOM.pageContainer) {
@@ -1279,9 +1468,11 @@ if (!DOM.pageContainer) {
                 >
                     ${renderShopSkeleton(4)}
                 </div>
+                ${renderTrustSection()}
             </section>
         `;
         bindPageActions();
+        initTrustSection();
     
         /* Les annonces arrivent ensuite, sans bloquer l'affichage. */
         await loadListings();
@@ -1404,6 +1595,8 @@ if (!DOM.pageContainer) {
         const title = listing.title || listing.name || "Canal Telegram";
         const username = listing.username
             ? `@${String(listing.username).replace(/^@/, "")}`
+            : listing.channel?.is_private
+            ? "Canal privé"
             : "Canal Telegram";
         const category = listing.category || "";
         const subscribers = listing.subscribers_count;
@@ -1488,6 +1681,26 @@ if (!DOM.pageContainer) {
             </article>
         `;
     }
+
+    /* « Voir le canal » : ouvre le canal DANS Telegram (pas dans un navigateur). */
+    document.addEventListener("click", (event) => {
+        const link = event.target.closest?.("[data-visit-channel]");
+
+        if (!link) {
+            return;
+        }
+
+        event.preventDefault();
+
+        const url = link.dataset.visitChannel;
+        const webApp = window.Telegram?.WebApp;
+
+        if (webApp?.openTelegramLink) {
+            webApp.openTelegramLink(url);
+        } else {
+            window.open(url, "_blank", "noopener");
+        }
+    });
 
     /* Photo de canal introuvable : on garde les initiales (sans onerror inline). */
     document.addEventListener(
@@ -2521,6 +2734,20 @@ if (!DOM.pageContainer) {
                             <span>Paiement sécurisé</span>
                         </div>
                     </div>
+                    ${
+                        listing.channel?.channel_url
+                            ? `<a
+                                    class="secondary-action full-width channel-visit"
+                                    href="${escapeHTML(listing.channel.channel_url)}"
+                                    target="_blank"
+                                    rel="noopener"
+                                    data-visit-channel="${escapeHTML(listing.channel.channel_url)}"
+                                >Voir le canal sur Telegram</a>`
+                            : `<div class="private-note">
+                                    <strong>Canal privé</strong>
+                                    <span>Il n'a pas de lien public : l'accès te sera donné après l'achat.</span>
+                                </div>`
+                    }
                     <button
                         class="primary-action full-width"
                         type="button"
@@ -2745,6 +2972,112 @@ if (!DOM.pageContainer) {
     /* =====================================================
        WALLET PAGE
     ===================================================== */
+    /* =====================================================
+       SOLDE MASQUABLE + COPIE DU NEXA ID
+    ===================================================== */
+    const BALANCE_HIDDEN_KEY = "nexmarket_hide_balance";
+
+    function isBalanceHidden() {
+        try {
+            return localStorage.getItem(BALANCE_HIDDEN_KEY) === "1";
+        } catch (error) {
+            return false;
+        }
+    }
+
+    function renderMoney(value, currency) {
+        const real = formatMoney(value, currency);
+
+        return `<span class="money" data-real="${escapeHTML(real)}">${
+            isBalanceHidden() ? "••••••" : escapeHTML(real)
+        }</span>`;
+    }
+
+    function applyBalanceMask() {
+        const hidden = isBalanceHidden();
+
+        document.querySelectorAll(".money").forEach((element) => {
+            element.textContent = hidden ? "••••••" : element.dataset.real;
+        });
+
+        document
+            .querySelectorAll("[data-balance-toggle]")
+            .forEach((button) => {
+                button.innerHTML = hidden ? ICONS.eyeOff : ICONS.eye;
+                button.setAttribute("aria-pressed", String(hidden));
+                button.setAttribute(
+                    "aria-label",
+                    hidden ? "Afficher le solde" : "Masquer le solde"
+                );
+            });
+    }
+
+    async function copyText(text) {
+        try {
+            await navigator.clipboard.writeText(text);
+            return true;
+        } catch (error) {
+            /* WebView sans API presse-papiers : méthode de secours */
+            try {
+                const area = document.createElement("textarea");
+                area.value = text;
+                area.setAttribute("readonly", "");
+                area.style.cssText = "position:fixed;opacity:0;top:0;left:0";
+                document.body.appendChild(area);
+                area.select();
+                const ok = document.execCommand("copy");
+                area.remove();
+                return ok;
+            } catch (fallbackError) {
+                return false;
+            }
+        }
+    }
+
+    function bindBalanceTools() {
+        applyBalanceMask();
+
+        document
+            .querySelectorAll("[data-balance-toggle]")
+            .forEach((button) => {
+                button.addEventListener("click", () => {
+                    try {
+                        localStorage.setItem(
+                            BALANCE_HIDDEN_KEY,
+                            isBalanceHidden() ? "0" : "1"
+                        );
+                    } catch (error) {
+                        /* stockage indisponible : sans conséquence */
+                    }
+
+                    applyBalanceMask();
+                });
+            });
+
+        document
+            .querySelectorAll("[data-copy-nexa]")
+            .forEach((button) => {
+                button.addEventListener("click", async () => {
+                    const id = state.user?.nexa_id;
+
+                    if (!id) {
+                        showToast(
+                            "Nexa ID",
+                            "Ton identifiant n'est pas encore prêt."
+                        );
+                        return;
+                    }
+
+                    const ok = await copyText(id);
+
+                    showToast(
+                        ok ? "Copié" : "Copie impossible",
+                        ok ? `${id} est dans le presse-papiers.` : id
+                    );
+                });
+            });
+    }
+
     async function renderWallet() {
         state.currentPage =
             "wallet";
@@ -2786,14 +3119,16 @@ if (!DOM.pageContainer) {
                     </p>
                 </div>
                 <div class="wallet-balance-panel">
-                    <span>
-                        Solde disponible
-                    </span>
+                    <div class="wallet-balance-top">
+                        <span>Solde disponible</span>
+                        <button
+                            type="button"
+                            class="balance-eye"
+                            data-balance-toggle
+                        >${ICONS.eye}</button>
+                    </div>
                     <strong>
-                        ${formatMoney(
-                            available,
-                            currency
-                        )}
+                        ${renderMoney(available, currency)}
                     </strong>
                     <div class="wallet-id">
                         NEXA ID
@@ -2803,6 +3138,11 @@ if (!DOM.pageContainer) {
                                 "En cours…"
                             }
                         </b>
+                        <button
+                            type="button"
+                            class="copy-chip"
+                            data-copy-nexa
+                        >${ICONS.copy} Copier</button>
                     </div>
                 </div>
                 <div class="wallet-actions">
@@ -2829,10 +3169,7 @@ if (!DOM.pageContainer) {
                             Bloqué
                         </span>
                         <strong>
-                            ${formatMoney(
-                                blocked,
-                                currency
-                            )}
+                            ${renderMoney(blocked, currency)}
                         </strong>
                     </div>
                     <div>
@@ -2840,10 +3177,7 @@ if (!DOM.pageContainer) {
                             Revenus
                         </span>
                         <strong>
-                            ${formatMoney(
-                                revenue,
-                                currency
-                            )}
+                            ${renderMoney(revenue, currency)}
                         </strong>
                     </div>
                 </div>
@@ -2863,6 +3197,7 @@ if (!DOM.pageContainer) {
             </section>
         `;
         bindWalletActions();
+        bindBalanceTools();
     }
     /* =====================================================
        DEPOSIT
@@ -2923,21 +3258,54 @@ if (!DOM.pageContainer) {
                         </div>
                     </div>
                     <div class="modal-field">
+                        <span class="modal-field-label">
+                            Pays d'origine
+                        </span>
+                        <div class="country-grid" id="depositCountryGrid">
+                            ${DEPOSIT_COUNTRIES.map(
+                                (country) => `
+                                    <button
+                                        type="button"
+                                        class="country-option ${
+                                            country.code === getDepositCountry()
+                                                ? "selected"
+                                                : ""
+                                        }"
+                                        data-country="${country.code}"
+                                        data-dial="${country.dial}"
+                                    >
+                                        <strong>${escapeHTML(country.name)}</strong>
+                                        <small>${country.dial}</small>
+                                    </button>
+                                `
+                            ).join("")}
+                        </div>
+                    </div>
+                    <div class="modal-field">
                         <label
                             for="depositPhone"
                             class="modal-field-label"
                         >
-                            Numéro Mobile Money (avec indicatif)
+                            Numéro Mobile Money
                         </label>
-                        <input
-                            id="depositPhone"
-                            class="modal-standard-input"
-                            type="tel"
-                            inputmode="tel"
-                            autocomplete="tel"
-                            placeholder="Ex : +242060000000"
-                            required
-                        >
+                        <div class="phone-input-wrap">
+                            <span class="phone-prefix" id="depositDial">
+                                ${
+                                    DEPOSIT_COUNTRIES.find(
+                                        (country) =>
+                                            country.code === getDepositCountry()
+                                    )?.dial || "+242"
+                                }
+                            </span>
+                            <input
+                                id="depositPhone"
+                                type="tel"
+                                inputmode="tel"
+                                autocomplete="tel"
+                                placeholder="Ton numéro, sans l'indicatif"
+                                required
+                            >
+                        </div>
                     </div>
                     <div class="payment-provider wallet-provider">
                         <span class="provider-icon">
@@ -2981,12 +3349,76 @@ if (!DOM.pageContainer) {
             </div>
         `);
         document
+            .querySelectorAll("#depositCountryGrid .country-option")
+            .forEach((option) => {
+                option.addEventListener("click", () => {
+                    document
+                        .querySelectorAll("#depositCountryGrid .country-option")
+                        .forEach((other) => other.classList.remove("selected"));
+
+                    option.classList.add("selected");
+
+                    const dial = document.getElementById("depositDial");
+
+                    if (dial) {
+                        dial.textContent = option.dataset.dial;
+                    }
+
+                    try {
+                        localStorage.setItem(
+                            "nexmarket_deposit_country",
+                            option.dataset.country
+                        );
+                    } catch (error) {
+                        /* stockage indisponible : sans conséquence */
+                    }
+
+                    document.getElementById("depositPhone")?.focus();
+                });
+            });
+
+        document
             .getElementById("depositForm")
             ?.addEventListener(
                 "submit",
                 handleDepositSubmit
             );
     }
+    /* Pays pris en charge par JessiKaPay (JessiKaPay EXIGE le pays). */
+    const DEPOSIT_COUNTRIES = [
+        { code: "CI", name: "Côte d'Ivoire", dial: "+225" },
+        { code: "SN", name: "Sénégal", dial: "+221" },
+        { code: "TG", name: "Togo", dial: "+228" },
+        { code: "BJ", name: "Bénin", dial: "+229" },
+        { code: "BF", name: "Burkina Faso", dial: "+226" },
+        { code: "ML", name: "Mali", dial: "+223" },
+        { code: "CM", name: "Cameroun", dial: "+237" },
+        { code: "GA", name: "Gabon", dial: "+241" },
+        { code: "NE", name: "Niger", dial: "+227" },
+        { code: "CG", name: "Congo Brazzaville", dial: "+242" },
+        { code: "CD", name: "Congo RDC", dial: "+243" },
+        { code: "GN", name: "Guinée-Conakry", dial: "+224" },
+        { code: "TD", name: "Tchad", dial: "+235" },
+        { code: "GH", name: "Ghana", dial: "+233" },
+        { code: "KE", name: "Kenya", dial: "+254" },
+        { code: "CF", name: "Centrafrique", dial: "+236" },
+        { code: "GW", name: "Guinée-Bissau", dial: "+245" }
+    ];
+
+    function getDepositCountry() {
+        let saved = "";
+
+        try {
+            saved = localStorage.getItem("nexmarket_deposit_country") || "";
+        } catch (error) {
+            saved = "";
+        }
+
+        return DEPOSIT_COUNTRIES.some((country) => country.code === saved)
+            ? saved
+            : "CG";
+    }
+
     async function handleDepositSubmit(
         event
     ) {
@@ -3012,10 +3444,10 @@ if (!DOM.pageContainer) {
         const depositPhone = (
             document.getElementById("depositPhone")?.value || ""
         ).replace(/[\s-]+/g, "").trim();
-        if (!/^\+?\d{8,15}$/.test(depositPhone)) {
+        if (!/^\+?\d{6,15}$/.test(depositPhone)) {
             showModalError(
                 "Numéro invalide",
-                "Entre ton numéro avec l'indicatif du pays (ex. +242060000000)."
+                "Entre ton numéro Mobile Money, sans l'indicatif du pays."
             );
             return;
         }
@@ -3052,6 +3484,10 @@ if (!DOM.pageContainer) {
                             JSON.stringify({
                                 amount,
                                 phone: depositPhone,
+                                country:
+                                    document.querySelector(
+                                        "#depositCountryGrid .country-option.selected"
+                                    )?.dataset.country || getDepositCountry(),
                                 currency:
                                     state.wallet?.currency ||
                                     state.user?.currency ||
@@ -3570,15 +4006,27 @@ if (!DOM.pageContainer) {
                             : ""
                     }
                     ${renderDetectedChannels(detectedChannels)}
+                    <div class="channel-type" role="group" aria-label="Type de canal">
+                        <button type="button" class="channel-type-btn active" data-channel-type="public">
+                            <strong>Canal public</strong>
+                            <small>avec un @username</small>
+                        </button>
+                        <button type="button" class="channel-type-btn" data-channel-type="private">
+                            <strong>Canal privé</strong>
+                            <small>avec l'ID du canal</small>
+                        </button>
+                    </div>
                     <label>
-                        Lien ou @username du canal
+                        <span id="sellChannelLabel">Lien ou @username du canal</span>
                         <input
                             id="sellUsername"
                             type="text"
                             placeholder="@moncanal"
+                            autocapitalize="off"
+                            autocomplete="off"
                             required
                         >
-                        <small>
+                        <small id="sellChannelHint">
                             Le canal doit être accessible
                             et tu dois en être administrateur.
                         </small>
@@ -3662,6 +4110,32 @@ if (!DOM.pageContainer) {
                             placeholder="Présente ton canal aux acheteurs..."
                         ></textarea>
                     </label>
+                    <div class="proofs-block">
+                        <span class="proofs-title">
+                            Photos de preuve <em>obligatoire</em>
+                        </span>
+                        <p class="proofs-help">
+                            Ajoute 1 à 4 captures : statistiques du canal
+                            (abonnés, vues) et preuve que tu en es le
+                            propriétaire. Elles sont envoyées à
+                            l'administrateur pour validation.
+                        </p>
+                        <div class="proofs-grid" id="sellProofsGrid"></div>
+                        <input
+                            type="file"
+                            id="sellProofsInput"
+                            accept="image/*"
+                            multiple
+                            hidden
+                        >
+                        <button
+                            type="button"
+                            class="secondary-action full-width"
+                            id="sellProofsAdd"
+                        >
+                            + Ajouter des photos
+                        </button>
+                    </div>
                     <button
                         type="submit"
                         class="primary-action full-width"
@@ -3704,6 +4178,8 @@ if (!DOM.pageContainer) {
         setupCategoryPicker();
         bindDetectedChannels();
         applySellDraft();
+        bindChannelType();
+        bindProofs();
         /* Affichés une seule fois : une visite ultérieure repart propre. */
         state.sellError = "";
         state.sellDraft = null;
@@ -3880,6 +4356,7 @@ if (!DOM.pageContainer) {
             username: input?.value || "",
             channelId: input?.dataset.channelId || "",
             category: document.getElementById("sellCategory")?.value || "",
+            channelType: state.sellChannelType,
             price: document.getElementById("sellPrice")?.value || "",
             description:
                 document.getElementById("sellDescription")?.value || ""
@@ -3963,6 +4440,8 @@ if (!DOM.pageContainer) {
             }
         }
 
+        state.sellChannelType = draft.channelType || state.sellChannelType;
+
         const price = document.getElementById("sellPrice");
         const description = document.getElementById("sellDescription");
         const category = document.getElementById("sellCategory");
@@ -3978,6 +4457,186 @@ if (!DOM.pageContainer) {
                 categoryText.textContent = draft.category;
             }
         }
+    }
+
+    /* =====================================================
+       VENTE : canal public / privé + photos de preuve
+    ===================================================== */
+    const MAX_PROOFS = 4;
+
+    function compressImage(file, maxSide = 1280, maxBytes = 700000) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+
+            reader.onerror = () =>
+                reject(new Error("Lecture de la photo impossible."));
+
+            reader.onload = () => {
+                const image = new Image();
+
+                image.onerror = () =>
+                    reject(new Error("Cette photo ne peut pas être lue."));
+
+                image.onload = () => {
+                    const scale = Math.min(
+                        1,
+                        maxSide / Math.max(image.width, image.height)
+                    );
+                    const canvas = document.createElement("canvas");
+
+                    canvas.width = Math.max(1, Math.round(image.width * scale));
+                    canvas.height = Math.max(1, Math.round(image.height * scale));
+
+                    const context = canvas.getContext("2d");
+                    context.fillStyle = "#fff";
+                    context.fillRect(0, 0, canvas.width, canvas.height);
+                    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+                    let quality = 0.72;
+                    let data = canvas.toDataURL("image/jpeg", quality);
+
+                    /* Allège jusqu'à ~700 Ko : envoi rapide même en 3G. */
+                    while (data.length * 0.75 > maxBytes && quality > 0.4) {
+                        quality -= 0.1;
+                        data = canvas.toDataURL("image/jpeg", quality);
+                    }
+
+                    resolve(data);
+                };
+
+                image.src = reader.result;
+            };
+
+            reader.readAsDataURL(file);
+        });
+    }
+
+    function renderProofsGrid() {
+        const grid = document.getElementById("sellProofsGrid");
+        const addButton = document.getElementById("sellProofsAdd");
+
+        if (!grid) {
+            return;
+        }
+
+        grid.innerHTML = state.sellProofs
+            .map(
+                (data, index) => `
+                    <div class="proof-thumb">
+                        <img src="${data}" alt="Preuve ${index + 1}">
+                        <button
+                            type="button"
+                            class="proof-remove"
+                            data-proof-remove="${index}"
+                            aria-label="Retirer la photo"
+                        >×</button>
+                    </div>
+                `
+            )
+            .join("");
+
+        grid.querySelectorAll("[data-proof-remove]").forEach((button) => {
+            button.addEventListener("click", () => {
+                state.sellProofs.splice(Number(button.dataset.proofRemove), 1);
+                renderProofsGrid();
+            });
+        });
+
+        if (addButton) {
+            addButton.disabled = state.sellProofs.length >= MAX_PROOFS;
+            addButton.textContent =
+                state.sellProofs.length >= MAX_PROOFS
+                    ? `${MAX_PROOFS} photos maximum`
+                    : state.sellProofs.length
+                    ? `+ Ajouter une photo (${state.sellProofs.length}/${MAX_PROOFS})`
+                    : "+ Ajouter des photos";
+        }
+    }
+
+    function bindProofs() {
+        const input = document.getElementById("sellProofsInput");
+        const addButton = document.getElementById("sellProofsAdd");
+
+        renderProofsGrid();
+
+        addButton?.addEventListener("click", () => input?.click());
+
+        input?.addEventListener("change", async () => {
+            const files = Array.from(input.files || []);
+            input.value = "";
+
+            for (const file of files) {
+                if (state.sellProofs.length >= MAX_PROOFS) {
+                    break;
+                }
+
+                try {
+                    state.sellProofs.push(await compressImage(file));
+                    renderProofsGrid();
+                } catch (error) {
+                    showToast("Photo ignorée", error.message);
+                }
+            }
+        });
+    }
+
+    function applyChannelType() {
+        const isPrivate = state.sellChannelType === "private";
+        const input = document.getElementById("sellUsername");
+        const label = document.getElementById("sellChannelLabel");
+        const hint = document.getElementById("sellChannelHint");
+
+        document.querySelectorAll("[data-channel-type]").forEach((button) => {
+            button.classList.toggle(
+                "active",
+                button.dataset.channelType === state.sellChannelType
+            );
+        });
+
+        if (label) {
+            label.textContent = isPrivate
+                ? "ID du canal privé"
+                : "Lien ou @username du canal";
+        }
+
+        if (input) {
+            input.placeholder = isPrivate ? "-1001234567890" : "@moncanal";
+            input.inputMode = isPrivate ? "numeric" : "text";
+        }
+
+        if (hint) {
+            hint.textContent = isPrivate
+                ? "Ajoute le bot NexMarket comme administrateur : ton canal apparaît dans « Canaux détectés » (touche-le). Sinon colle ici l'ID du canal. Les acheteurs n'auront pas de lien public."
+                : "Le canal doit être public (avec un @username) et tu dois en être administrateur. Les visiteurs pourront ouvrir ton canal depuis l'annonce.";
+        }
+    }
+
+    function bindChannelType() {
+        applyChannelType();
+
+        document.querySelectorAll("[data-channel-type]").forEach((button) => {
+            button.addEventListener("click", () => {
+                if (state.sellChannelType === button.dataset.channelType) {
+                    return;
+                }
+
+                state.sellChannelType = button.dataset.channelType;
+
+                /* On change de mode : l'ancienne saisie n'a plus de sens. */
+                const input = document.getElementById("sellUsername");
+
+                if (input) {
+                    input.value = "";
+                    delete input.dataset.channelId;
+                }
+
+                document
+                    .querySelectorAll("[data-detected-id]")
+                    .forEach((other) => other.classList.remove("selected"));
+
+                applyChannelType();
+            });
+        });
     }
 
     async function handleSellSubmit(
@@ -4011,10 +4670,31 @@ if (!DOM.pageContainer) {
         const description =
             descriptionInput?.value.trim() ||
             "";
+        const isPrivate = state.sellChannelType === "private";
+        const detectedId = usernameInput?.dataset.channelId || "";
+
         if (!username) {
             showToast(
                 "Canal requis",
-                "Entre le @username ou le lien du canal."
+                isPrivate
+                    ? "Choisis ton canal dans « Canaux détectés » ou entre son ID."
+                    : "Entre le @username ou le lien du canal."
+            );
+            return;
+        }
+
+        if (isPrivate && !detectedId && !/^-?\d{6,}$/.test(username)) {
+            showToast(
+                "ID invalide",
+                "L'ID d'un canal ressemble à -1001234567890. Le plus simple : touche ton canal dans « Canaux détectés »."
+            );
+            return;
+        }
+
+        if (!state.sellProofs.length) {
+            showToast(
+                "Photo de preuve requise",
+                "Ajoute au moins une capture des statistiques de ton canal."
             );
             return;
         }
@@ -4050,11 +4730,14 @@ if (!DOM.pageContainer) {
                         method: "POST",
                         body:
                             JSON.stringify(
-                                usernameInput?.dataset.channelId
+                                detectedId
                                     ? {
-                                          telegram_channel_id: Number(
-                                              usernameInput.dataset.channelId
-                                          ),
+                                          telegram_channel_id: Number(detectedId),
+                                          description
+                                      }
+                                    : isPrivate
+                                    ? {
+                                          telegram_channel_id: Number(username),
                                           description
                                       }
                                     : { username, description }
@@ -4089,10 +4772,12 @@ if (!DOM.pageContainer) {
                                     ),
                                 price,
                                 category,
-                                description
+                                description,
+                                proof_images: state.sellProofs
                             })
                     }
                 );
+            state.sellProofs = [];
             state.sellDraft = null;
             state.sellError = "";
             closeModal();
@@ -4108,6 +4793,7 @@ if (!DOM.pageContainer) {
             state.sellDraft = {
                 username,
                 channelId: usernameInput?.dataset.channelId || "",
+                channelType: state.sellChannelType,
                 category,
                 price: priceInput?.value || "",
                 description
@@ -5042,6 +5728,15 @@ if (!DOM.pageContainer) {
                                 `
                                 : ""
                         }
+                        <div class="wallet-id profile-nexa">
+                            NEXA ID
+                            <b>${escapeHTML(state.user?.nexa_id || "En cours…")}</b>
+                            <button
+                                type="button"
+                                class="copy-chip"
+                                data-copy-nexa
+                            >${ICONS.copy} Copier</button>
+                        </div>
                     </div>
                 </div>
                 <div class="profile-wallet">
@@ -5049,12 +5744,14 @@ if (!DOM.pageContainer) {
                     <div>
                         <span>
                             Solde disponible
+                            <button
+                                type="button"
+                                class="balance-eye"
+                                data-balance-toggle
+                            >${ICONS.eye}</button>
                         </span>
                         <strong>
-                            ${formatMoney(
-                                available,
-                                currency
-                            )}
+                            ${renderMoney(available, currency)}
                         </strong>
                     </div>
                     <button
@@ -5117,6 +5814,7 @@ if (!DOM.pageContainer) {
             </section>
         `;
         bindProfileActions();
+        bindBalanceTools();
         setupAdminAccess();
     }
     /* =====================================================

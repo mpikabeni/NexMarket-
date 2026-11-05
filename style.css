@@ -2746,3 +2746,240 @@ body.category-picker-open {
   background:linear-gradient(135deg,var(--purple),var(--purple-dark));border-color:transparent;
 }
 .access-gate-btn.ghost{background:transparent;color:var(--purple-light)}
+
+
+/* =========================================================
+   DÉPÔT — choix du pays (comme l'application JessiKaPay)
+   ========================================================= */
+.country-grid{
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;
+  max-height:228px;overflow-y:auto;padding:2px;margin-top:2px
+}
+.country-option{
+  display:flex;flex-direction:column;align-items:flex-start;gap:3px;
+  padding:11px 12px;border-radius:14px;text-align:left;
+  background:var(--surface-2);border:1px solid var(--border);color:var(--text);
+  transition:var(--transition)
+}
+.country-option strong{font-size:12px;font-weight:800;line-height:1.2}
+.country-option small{color:var(--text-muted);font-size:10px;letter-spacing:.8px}
+.country-option.selected{
+  border-color:var(--border-active);background:rgba(139,92,246,.2);
+  box-shadow:0 0 0 2px rgba(139,92,246,.35)
+}
+.country-option.selected small{color:var(--purple-light)}
+.phone-input-wrap{
+  display:flex;align-items:stretch;border-radius:14px;overflow:hidden;
+  background:var(--surface-2);border:1px solid var(--border)
+}
+.phone-input-wrap:focus-within{border-color:var(--border-active)}
+.phone-prefix{
+  display:flex;align-items:center;padding:0 12px;font-weight:800;font-size:13px;
+  color:var(--purple-light);background:rgba(139,92,246,.12);
+  border-right:1px solid var(--border)
+}
+.phone-input-wrap input{
+  flex:1;min-width:0;height:46px;padding:0 12px;background:transparent;
+  border:0;outline:0;color:var(--text);font-size:14px
+}
+
+
+/* =========================================================
+   NEXA ID (copier) + SOLDE MASQUABLE
+   ========================================================= */
+.wallet-balance-top{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.balance-eye{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:30px;height:30px;margin-left:8px;border-radius:50%;
+  background:rgba(255,255,255,.08);color:var(--text-soft);
+  transition:var(--transition);vertical-align:middle
+}
+.balance-eye svg{width:16px;height:16px}
+.balance-eye:active{transform:scale(.9);background:rgba(139,92,246,.3);color:#fff}
+.money{font-variant-numeric:tabular-nums;letter-spacing:.2px}
+.wallet-id{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+.copy-chip{
+  display:inline-flex;align-items:center;gap:5px;padding:5px 10px;
+  border-radius:999px;font-size:10px;font-weight:800;
+  background:rgba(139,92,246,.18);border:1px solid rgba(139,92,246,.4);
+  color:#fff;transition:var(--transition)
+}
+.copy-chip svg{width:12px;height:12px}
+.copy-chip:active{transform:scale(.93);background:rgba(139,92,246,.4)}
+.profile-nexa{margin-top:6px}
+
+
+/* =========================================================
+   CONFIANCE — « NexMarket en chiffres » (accueil)
+   ========================================================= */
+.trust-section{
+  position:relative;isolation:isolate;overflow:hidden;
+  margin:30px 0 8px;padding:24px 16px 18px;border-radius:26px;
+  background:linear-gradient(160deg,rgba(139,92,246,.16),rgba(20,16,40,.92) 55%);
+  border:1px solid rgba(139,92,246,.28)
+}
+.trust-orbs span{
+  position:absolute;z-index:-1;border-radius:50%;filter:blur(38px);opacity:.55;
+  animation:orbDrift 9s ease-in-out infinite
+}
+.trust-orbs span:nth-child(1){width:150px;height:150px;left:-40px;top:-30px;background:#8b5cf6}
+.trust-orbs span:nth-child(2){width:130px;height:130px;right:-30px;top:40%;background:#35d39a;animation-delay:-3s}
+.trust-orbs span:nth-child(3){width:120px;height:120px;left:35%;bottom:-50px;background:#5b8cff;animation-delay:-6s}
+@keyframes orbDrift{
+  0%,100%{transform:translate(0,0) scale(1)}
+  33%{transform:translate(24px,-18px) scale(1.15)}
+  66%{transform:translate(-18px,16px) scale(.9)}
+}
+
+.trust-head{text-align:center;margin-bottom:18px}
+.trust-head h2{margin:8px 0 4px;font-size:20px;font-weight:900}
+.trust-head p{margin:0;color:var(--text-soft);font-size:11.5px}
+.live-pill{
+  display:inline-flex;align-items:center;gap:7px;padding:5px 12px;border-radius:999px;
+  background:rgba(53,211,154,.14);border:1px solid rgba(53,211,154,.4);
+  color:#7ff0c3;font-size:9.5px;font-weight:900;letter-spacing:1.4px
+}
+.live-pill i{
+  width:7px;height:7px;border-radius:50%;background:#35d39a;
+  box-shadow:0 0 0 0 rgba(53,211,154,.7);animation:livePulse 1.6s ease-out infinite
+}
+@keyframes livePulse{
+  0%{box-shadow:0 0 0 0 rgba(53,211,154,.7)}
+  100%{box-shadow:0 0 0 10px rgba(53,211,154,0)}
+}
+
+.trust-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+@media (max-width:360px){.trust-grid{grid-template-columns:1fr}}
+
+.trust-card{
+  position:relative;overflow:hidden;display:flex;flex-direction:column;align-items:center;
+  gap:6px;padding:16px 8px 14px;border-radius:20px;text-align:center;
+  opacity:0;transform:translateY(26px) scale(.94);
+  border:1px solid transparent;
+  background:
+    linear-gradient(var(--surface),var(--surface)) padding-box,
+    linear-gradient(120deg,#8b5cf6,#35d39a,#5b8cff,#8b5cf6) border-box;
+  background-size:100% 100%,300% 100%
+}
+.in-view .trust-card{
+  animation:
+    trustIn .85s cubic-bezier(.2,.9,.3,1.25) forwards,
+    borderFlow 6s linear infinite;
+  animation-delay:calc(var(--i) * .16s),0s
+}
+@keyframes trustIn{to{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes borderFlow{
+  0%{background-position:0 0,0% 0}
+  100%{background-position:0 0,300% 0}
+}
+/* reflet qui traverse la carte */
+.trust-card::after{
+  content:"";position:absolute;top:0;left:-70%;width:45%;height:100%;
+  background:linear-gradient(100deg,transparent,rgba(255,255,255,.14),transparent);
+  transform:skewX(-18deg);animation:sweep 4.5s ease-in-out infinite;
+  animation-delay:calc(var(--i) * .5s + 1.4s)
+}
+@keyframes sweep{
+  0%,55%{left:-70%}
+  100%{left:140%}
+}
+.trust-icon{
+  display:flex;align-items:center;justify-content:center;width:40px;height:40px;
+  border-radius:14px;color:#c4b0ff;background:rgba(139,92,246,.18);
+  animation:iconFloat 3.2s ease-in-out infinite;animation-delay:calc(var(--i) * .4s)
+}
+.trust-icon svg{width:21px;height:21px}
+@keyframes iconFloat{
+  0%,100%{transform:translateY(0) rotate(0)}
+  50%{transform:translateY(-5px) rotate(4deg)}
+}
+.trust-number{
+  font-size:26px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums;
+  background:linear-gradient(180deg,#fff,#c9b8ff);-webkit-background-clip:text;
+  background-clip:text;color:transparent
+}
+.trust-number.bump{animation:numberBump .5s ease}
+@keyframes numberBump{
+  0%{transform:scale(1);filter:drop-shadow(0 0 0 rgba(139,92,246,0))}
+  45%{transform:scale(1.18);filter:drop-shadow(0 0 12px rgba(139,92,246,.95))}
+  100%{transform:scale(1);filter:drop-shadow(0 0 0 rgba(139,92,246,0))}
+}
+.trust-label{color:var(--text-soft);font-size:9.5px;font-weight:700;line-height:1.3}
+
+.trust-strip{
+  display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:12px
+}
+.trust-strip > div{
+  display:flex;align-items:baseline;justify-content:center;gap:6px;
+  padding:11px 8px;border-radius:16px;background:rgba(255,255,255,.05)
+}
+.trust-strip b{font-size:17px;font-weight:900}
+.trust-strip span{color:var(--text-muted);font-size:10px;font-weight:700}
+
+.trust-marquee{
+  margin:14px -16px 0;overflow:hidden;padding:9px 0;
+  border-top:1px solid rgba(255,255,255,.07);
+  -webkit-mask-image:linear-gradient(90deg,transparent,#000 12%,#000 88%,transparent);
+  mask-image:linear-gradient(90deg,transparent,#000 12%,#000 88%,transparent)
+}
+.trust-marquee-track{
+  display:inline-flex;gap:30px;white-space:nowrap;padding-left:30px;
+  animation:marquee 26s linear infinite
+}
+.trust-marquee-track span{
+  position:relative;color:var(--text-soft);font-size:10.5px;font-weight:700
+}
+.trust-marquee-track span::before{
+  content:"✦";margin-right:8px;color:#8b5cf6
+}
+@keyframes marquee{to{transform:translateX(-50%)}}
+
+@media (prefers-reduced-motion:reduce){
+  .trust-orbs span,.live-pill i,.trust-icon,.trust-card::after,
+  .trust-marquee-track,.in-view .trust-card{animation:none !important}
+  .trust-card{opacity:1;transform:none}
+}
+
+
+/* =========================================================
+   VENTE — canal public / privé, photos de preuve
+   ========================================================= */
+.channel-type{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.channel-type-btn{
+  display:flex;flex-direction:column;gap:2px;padding:12px;border-radius:14px;
+  text-align:left;background:var(--surface-2);border:1px solid var(--border);
+  color:var(--text);transition:var(--transition)
+}
+.channel-type-btn strong{font-size:12.5px}
+.channel-type-btn small{color:var(--text-muted);font-size:10px}
+.channel-type-btn.active{
+  border-color:var(--border-active);background:rgba(139,92,246,.2);
+  box-shadow:0 0 0 2px rgba(139,92,246,.35)
+}
+.proofs-block{
+  display:flex;flex-direction:column;gap:9px;padding:14px;margin:4px 0 14px;
+  border-radius:18px;background:var(--surface-2);border:1px dashed var(--border-active)
+}
+.proofs-title{font-size:13px;font-weight:800}
+.proofs-title em{
+  margin-left:6px;padding:2px 8px;border-radius:999px;font-style:normal;
+  font-size:9px;background:rgba(255,93,115,.18);color:#ffb3bd
+}
+.proofs-help{margin:0;color:var(--text-soft);font-size:10.5px;line-height:1.5}
+.proofs-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.proof-thumb{position:relative;aspect-ratio:1;border-radius:12px;overflow:hidden;background:#000}
+.proof-thumb img{width:100%;height:100%;object-fit:cover}
+.proof-remove{
+  position:absolute;top:3px;right:3px;width:22px;height:22px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;font-size:15px;line-height:1;
+  background:rgba(0,0,0,.72);color:#fff
+}
+.private-note{
+  display:flex;flex-direction:column;gap:2px;padding:12px 14px;margin-top:10px;
+  border-radius:14px;background:rgba(245,185,66,.08);border:1px solid rgba(245,185,66,.3);
+  color:var(--text-soft);font-size:10.5px;line-height:1.5
+}
+.private-note strong{color:var(--warning);font-size:12px}
+a.secondary-action.channel-visit{
+  display:flex;align-items:center;justify-content:center;text-align:center;text-decoration:none
+}
