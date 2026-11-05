@@ -1,4 +1,7 @@
-FICHIERS A REMPLACER (frontend)
-===============================
-app.js, style.css et index.html (le numero ?v= change : cela force le
-rechargement du CSS et du JS dans Telegram). Rien a supprimer.
+FICHIERS A REMPLACER (FRONTEND)
+========================================
+Copiez ces fichiers dans votre depot GitHub en respectant les chemins (ils ecrasent les anciens).
+
+A SUPPRIMER du depot :
+  - admin/admin.css
+  - admin/admin.js
