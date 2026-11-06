@@ -836,8 +836,7 @@
             <td><span class="badge ${tone}">${esc(label)}</span>${d.failure_reason ? `<small>${esc(d.failure_reason)}</small>` : ""}</td>
             <td>${fmtDate(d.created_at)}</td>
             <td class="actions"><span class="btn-row">
-              ${open ? `<button class="btn" data-act="recheck-deposit" data-id="${d.id}" type="button">Revérifier</button>
-              <button class="btn ok" data-act="credit-deposit" data-id="${d.id}" type="button">Créditer</button>` : ""}
+              ${open ? `<button class="btn" data-act="recheck-deposit" data-id="${d.id}" type="button">Revérifier</button>` : ""}
             </span></td>
           </tr>`;
         }).join("")
@@ -912,16 +911,6 @@
             <h3 class="modal-title">Réponse de JessiKaPay</h3>
             <p class="modal-sub">Statut NexMarket : <strong>${esc(result.status)}</strong>${result.paid ? " — wallet crédité." : ""}</p>
             <pre style="white-space:pre-wrap;word-break:break-word;background:var(--surface-2);padding:12px;border-radius:12px;font-size:11.5px">${esc(JSON.stringify(result.provider, null, 2))}</pre>`);
-          await loadDeposits();
-        });
-        break;
-
-      case "credit-deposit":
-        run(target, async () => {
-          if (!confirm("As-tu VÉRIFIÉ dans JessiKaPay que ce paiement a bien été reçu ?\nLe montant sera ajouté au solde de l'utilisateur (une seule fois).")) return;
-          const note = (prompt("Note (facultatif) :") || "").trim();
-          await api(`/admin/deposits/${id}/credit`, { method: "POST", body: JSON.stringify({ note }) });
-          toast("Dépôt crédité.");
           await loadDeposits();
         });
         break;
