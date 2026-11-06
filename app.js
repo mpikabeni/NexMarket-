@@ -17,8 +17,11 @@
         ADMIN_TAP_COUNT: 5,
         ADMIN_TAP_WINDOW: 2500,
         REQUEST_TIMEOUT: 20000,
-        SLOW_REQUEST_TIMEOUT: 35000
+        SLOW_REQUEST_TIMEOUT: 35000,
+        MIN_WITHDRAWAL_XAF: 1000,
+        CHAT_REFRESH_MS: 5000
     };
+    const MIN_WITHDRAWAL = CONFIG.MIN_WITHDRAWAL_XAF;
     /* =====================================================
        TELEGRAM WEB APP
     ===================================================== */
@@ -770,6 +773,7 @@
             "hidden";
     }
     function closeModal() {
+        stopChatRefresh();
         if (!DOM.modalContainer) {
             return;
         }
@@ -3533,13 +3537,9 @@ if (!DOM.pageContainer) {
             );
             if (url) {
                 closeModal();
-                const totalToPay = Number(data?.total_amount) || 0;
-                const feeToPay = Number(data?.fee_amount) || 0;
                 showToast(
                     "Paiement prêt",
-                    totalToPay > amount
-                        ? `Tu paies ${totalToPay} XAF (${amount} + ${feeToPay} de frais). Termine le paiement sur la page JessiKaPay, puis reviens dans NexMarket.`
-                        : "La page JessiKaPay va s'ouvrir. Termine le paiement puis reviens dans NexMarket."
+                    "La page JessiKaPay va s'ouvrir. Termine le paiement puis reviens dans NexMarket."
                 );
                 if (tg) {
                     tg.openLink(url);
@@ -3611,10 +3611,10 @@ if (!DOM.pageContainer) {
                             <input
                                 id="withdrawAmount"
                                 type="number"
-                                min="1"
+                                min="${MIN_WITHDRAWAL}"
                                 step="1"
                                 inputmode="numeric"
-                                placeholder="0"
+                                placeholder="${MIN_WITHDRAWAL}"
                                 required
                             >
                             <span>
@@ -3625,6 +3625,10 @@ if (!DOM.pageContainer) {
                                 )}
                             </span>
                         </div>
+                        <small class="modal-field-hint">
+                            Retrait minimum : ${MIN_WITHDRAWAL.toLocaleString("fr-FR")} XAF.
+                            Tu es prévenu dans le bot dès que JessiKaPay confirme.
+                        </small>
                     </div>
                     <div class="modal-field">
                         <label
@@ -3910,6 +3914,13 @@ if (!DOM.pageContainer) {
             showModalError(
                 "Montant invalide",
                 "Entre un montant supérieur à zéro."
+            );
+            return;
+        }
+        if (amount < MIN_WITHDRAWAL) {
+            showModalError(
+                "Montant trop faible",
+                `Le retrait minimum est de ${MIN_WITHDRAWAL.toLocaleString("fr-FR")} XAF.`
             );
             return;
         }
@@ -5506,10 +5517,49 @@ if (!DOM.pageContainer) {
     /* =====================================================
        MESSAGES
     ===================================================== */
-    async function openMessages(
-        transactionId
+    let chatTimer = null;
+    let chatTransactionId = null;
+    let chatLastSignature = "";
+    function stopChatRefresh() {
+        if (chatTimer) {
+            clearInterval(chatTimer);
+            chatTimer = null;
+        }
+        chatTransactionId = null;
+    }
+    function extractMessages(data) {
+        return Array.isArray(data)
+            ? data
+            : (data?.items || data?.messages || []);
+    }
+    function renderMessagesHTML(messages) {
+        if (!messages.length) {
+            return `
+                <div class="messages-empty">
+                    ${ICONS.message}
+                    <p>
+                        Aucun message pour le moment.
+                    </p>
+                </div>
+            `;
+        }
+        return messages
+            .map(renderMessage)
+            .join("");
+    }
+    async function refreshMessages(
+        transactionId,
+        { forceScroll = false } = {}
     ) {
-        if (!transactionId) {
+        if (chatTransactionId !== transactionId) {
+            return;
+        }
+        const list =
+            document.getElementById(
+                "messagesList"
+            );
+        if (!list) {
+            stopChatRefresh();
             return;
         }
         try {
@@ -5518,28 +5568,55 @@ if (!DOM.pageContainer) {
                     `/messages/transaction/${transactionId}`
                 );
             const messages =
-                Array.isArray(data)
-                    ? data
-                    : (
-                        data.items ||
-                        data.messages ||
-                        []
-                    );
-            const messagesHTML =
-                messages.length
-                    ? messages
-                        .map(
-                            renderMessage
-                        )
-                        .join("")
-                    : `
-                        <div class="messages-empty">
-                            ${ICONS.message}
-                            <p>
-                                Aucun message pour le moment.
-                            </p>
-                        </div>
-                    `;
+                extractMessages(data);
+            const last =
+                messages[messages.length - 1];
+            const signature =
+                `${messages.length}:${last?.id || 0}`;
+            if (signature === chatLastSignature) {
+                return;
+            }
+            const nearBottom =
+                list.scrollHeight -
+                list.scrollTop -
+                list.clientHeight < 80;
+            chatLastSignature = signature;
+            list.innerHTML =
+                renderMessagesHTML(messages);
+            if (forceScroll || nearBottom) {
+                list.scrollTop =
+                    list.scrollHeight;
+            }
+            await markMessagesRead(
+                transactionId
+            );
+        } catch (error) {
+            console.warn(
+                "Actualisation discussion:",
+                error.message
+            );
+        }
+    }
+    async function openMessages(
+        transactionId
+    ) {
+        if (!transactionId) {
+            return;
+        }
+        try {
+            stopChatRefresh();
+            const data =
+                await apiRequest(
+                    `/messages/transaction/${transactionId}`
+                );
+            const messages =
+                extractMessages(data);
+            const last =
+                messages[messages.length - 1];
+            chatLastSignature =
+                `${messages.length}:${last?.id || 0}`;
+            chatTransactionId =
+                transactionId;
             openModal(`
                 <div class="messages-modal">
                     <div class="modal-header-content">
@@ -5550,13 +5627,18 @@ if (!DOM.pageContainer) {
                             <h2>
                                 Discussion
                             </h2>
+                            <p class="messages-hint">
+                                Acheteur, vendeur et administrateur
+                                échangent ici. Tu reçois aussi
+                                les messages dans le bot.
+                            </p>
                         </div>
                     </div>
                     <div
                         class="messages-list"
                         id="messagesList"
                     >
-                        ${messagesHTML}
+                        ${renderMessagesHTML(messages)}
                     </div>
                     <form
                         id="messageForm"
@@ -5573,12 +5655,21 @@ if (!DOM.pageContainer) {
                         <button
                             type="submit"
                             class="primary-action"
+                            aria-label="Envoyer"
                         >
                             Envoyer
                         </button>
                     </form>
                 </div>
             `);
+            const list =
+                document.getElementById(
+                    "messagesList"
+                );
+            if (list) {
+                list.scrollTop =
+                    list.scrollHeight;
+            }
             document
                 .getElementById(
                     "messageForm"
@@ -5592,6 +5683,14 @@ if (!DOM.pageContainer) {
                         );
                     }
                 );
+            chatTimer = setInterval(
+                () => {
+                    refreshMessages(
+                        transactionId
+                    );
+                },
+                CONFIG.CHAT_REFRESH_MS
+            );
             await markMessagesRead(
                 transactionId
             );
@@ -5603,9 +5702,35 @@ if (!DOM.pageContainer) {
             );
         }
     }
+    const CHAT_ROLE_LABELS = {
+        buyer: "Acheteur",
+        seller: "Vendeur",
+        admin: "Admin NexMarket",
+        system: "NexMarket"
+    };
     function renderMessage(
         message
     ) {
+        if (
+            message.is_system_message ||
+            message.sender_role === "system"
+        ) {
+            return `
+                <div class="message-system">
+                    <p>
+                        ${escapeHTML(
+                            message.content ||
+                            ""
+                        )}
+                    </p>
+                    <small>
+                        ${formatDate(
+                            message.created_at
+                        )}
+                    </small>
+                </div>
+            `;
+        }
         const own =
             Number(
                 message.sender_id
@@ -5613,14 +5738,35 @@ if (!DOM.pageContainer) {
             Number(
                 state.user?.id
             );
+        const role =
+            CHAT_ROLE_LABELS[
+                message.sender_role
+            ] || "";
+        const author =
+            own
+                ? "Moi"
+                : [
+                    role,
+                    message.sender_name
+                ]
+                    .filter(Boolean)
+                    .join(" · ");
         return `
             <div
                 class="message-bubble ${
                     own
                         ? "own"
                         : "other"
-                }"
+                } role-${escapeHTML(
+                    message.sender_role ||
+                    "user"
+                )}"
             >
+                <span class="message-author">
+                    ${escapeHTML(
+                        author
+                    )}
+                </span>
                 <p>
                     ${escapeHTML(
                         message.content ||
@@ -5649,6 +5795,13 @@ if (!DOM.pageContainer) {
         if (!content) {
             return;
         }
+        const submit =
+            event.target.querySelector(
+                'button[type="submit"]'
+            );
+        if (submit) {
+            submit.disabled = true;
+        }
         try {
             await apiRequest(
                 `/messages/transaction/${transactionId}`,
@@ -5661,8 +5814,10 @@ if (!DOM.pageContainer) {
                 }
             );
             input.value = "";
-            await openMessages(
-                transactionId
+            chatLastSignature = "";
+            await refreshMessages(
+                transactionId,
+                { forceScroll: true }
             );
         } catch (error) {
             showToast(
@@ -5670,6 +5825,11 @@ if (!DOM.pageContainer) {
                 error.message ||
                 "Impossible d'envoyer le message."
             );
+        } finally {
+            if (submit) {
+                submit.disabled = false;
+            }
+            input?.focus();
         }
     }
     async function markMessagesRead(
