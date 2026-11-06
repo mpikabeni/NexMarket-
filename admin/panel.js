@@ -21,7 +21,10 @@
     transactions: [],
     channels: [],
     users: [],
-    objectUrls: []
+    objectUrls: [],
+    chatTimer: null,
+    chatTx: null,
+    chatSignature: ""
   };
 
   /* ---------------- utilitaires ---------------- */
@@ -259,8 +262,8 @@
     reports: ["Signalements", "Problèmes signalés par les utilisateurs", loadReports],
     messages: ["Messages", "Discussions des transactions", loadMessages],
     announcements: ["Annonces", "Message à tous les utilisateurs", async () => {}],
-    deposits: ["Dépôts", "Suivi et crédit des dépôts", loadDeposits],
-    withdrawals: ["Retraits à vérifier", "Statut inconnu", loadWithdrawals],
+    deposits: ["Dépôts", "Crédités automatiquement dès la confirmation JessiKaPay", loadDeposits],
+    withdrawals: ["Retraits à vérifier", "Seulement si JessiKaPay n'a pas pu confirmer (cas rare)", loadWithdrawals],
     admins: ["Administrateurs", "Comptes autorisés", loadAdmins],
     wallet: ["Portefeuille NEXA", "Commissions de la plateforme", loadWallet]
   };
@@ -309,7 +312,15 @@
     $("#adminModal").classList.remove("hidden");
   }
 
+  function stopAdminChat() {
+    if (state.chatTimer) clearInterval(state.chatTimer);
+    state.chatTimer = null;
+    state.chatTx = null;
+    state.chatSignature = "";
+  }
+
   function closeModal() {
+    stopAdminChat();
     $("#modalOverlay").classList.add("hidden");
     $("#adminModal").classList.add("hidden");
     $("#modalContent").innerHTML = "";
@@ -515,6 +526,69 @@
       : `<tr><td colspan="6"><div class="empty-state">Aucune transaction.</div></td></tr>`;
   }
 
+  /* ================= DISCUSSION D'UNE TRANSACTION ================= */
+  const ROLE_LABELS = { buyer: "Acheteur", seller: "Vendeur", admin: "Admin", system: "NexMarket" };
+
+  function chatBubble(m) {
+    if (m.is_system_message || m.sender_role === "system") {
+      return `<div class="chat-system">${esc(m.content || "")}<small>${fmtDate(m.created_at)}</small></div>`;
+    }
+    const mine = m.sender_role === "admin";
+    const who = [ROLE_LABELS[m.sender_role] || m.sender_role, m.sender_name].filter(Boolean).join(" · ");
+    return `
+      <div class="chat-bubble ${mine ? "mine" : "theirs"} role-${esc(m.sender_role)}">
+        <span class="chat-author">${esc(who)}</span>
+        <p>${esc(m.content || "")}</p>
+        <small>${fmtDate(m.created_at)}</small>
+      </div>`;
+  }
+
+  async function refreshAdminChat(id, { force = false } = {}) {
+    if (state.chatTx !== id) return;
+    const list = $("#adminChatList");
+    if (!list) return stopAdminChat();
+
+    const data = await api(`/messages/transaction/${id}`);
+    const messages = data.messages || [];
+    const last = messages[messages.length - 1];
+    const signature = `${messages.length}:${last ? last.id : 0}`;
+    if (signature === state.chatSignature && !force) return;
+
+    const nearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 80;
+    state.chatSignature = signature;
+    list.innerHTML = messages.length
+      ? messages.map(chatBubble).join("")
+      : `<div class="empty-state">Aucun message. Écris le premier : l'acheteur et le vendeur le reçoivent dans le bot.</div>`;
+    if (force || nearBottom) list.scrollTop = list.scrollHeight;
+
+    api(`/messages/transaction/${id}/read`, { method: "POST" }).catch(() => {});
+  }
+
+  function startAdminChat(id) {
+    stopAdminChat();
+    state.chatTx = id;
+
+    refreshAdminChat(id, { force: true }).catch((e) => toast(e.message, true));
+    state.chatTimer = setInterval(() => refreshAdminChat(id).catch(() => {}), 5000);
+
+    $("#adminChatForm").addEventListener("submit", (event) => {
+      event.preventDefault();
+      const input = $("#adminChatInput");
+      const content = input.value.trim();
+      if (!content) return;
+
+      run(event.target.querySelector("button"), async () => {
+        await api(`/messages/transaction/${id}`, {
+          method: "POST",
+          body: JSON.stringify({ content, message_type: "text" })
+        });
+        input.value = "";
+        await refreshAdminChat(id, { force: true });
+        input.focus();
+      });
+    });
+  }
+
   async function openTransaction(id) {
     const t = await api(`/transactions/${id}`);
     const st = t.status;
@@ -549,7 +623,20 @@
               `<button class="btn ${tone}" data-tx-action="${action}" type="button">${label}</button>`).join("")
           : `<span class="sub" style="color:var(--text-muted)">Aucune action disponible.</span>`}
       </div>
+      ${t.escrow_held || ["waiting_admin", "transfer_started", "protection_period", "disputed", "completed", "refunded"].includes(st)
+        ? `<div class="chat-box">
+            <h4 class="chat-title">Discussion avec l'acheteur et le vendeur</h4>
+            <p class="chat-hint">Ils reçoivent chaque message dans le bot et peuvent répondre depuis le bot ou la Mini App.</p>
+            <div class="chat-list" id="adminChatList"><div class="empty-state">Chargement…</div></div>
+            <form id="adminChatForm" class="chat-form" autocomplete="off">
+              <input id="adminChatInput" type="text" maxlength="5000" placeholder="Écrire à l'acheteur et au vendeur…" required>
+              <button class="btn primary" type="submit">Envoyer</button>
+            </form>
+          </div>`
+        : ""}
     `);
+
+    if ($("#adminChatForm")) startAdminChat(id);
 
     $$("[data-tx-action]").forEach((button) =>
       button.addEventListener("click", (event) =>
@@ -676,9 +763,10 @@
     $("#messagesList").innerHTML = messages.length
       ? messages.map((m) => `
           <div class="item-card">
-            <div class="item-main"><strong>Transaction #${esc(m.transaction_id)} · utilisateur ${esc(m.sender_id)}</strong>
+            <div class="item-main"><strong>Transaction #${esc(m.transaction_id)} · ${esc(ROLE_LABELS[m.sender_role] || m.sender_role || "")}</strong>
               <span class="sub">${esc(m.content || "")}</span></div>
-            <span class="sub">${fmtDate(m.created_at)}</span>
+            <div class="item-side"><span class="sub">${fmtDate(m.created_at)}</span>
+              <button class="btn" data-act="open-transaction" data-id="${esc(m.transaction_id)}" type="button">Répondre</button></div>
           </div>`).join("")
       : `<div class="empty-state">Aucun message.</div>`;
   }
