@@ -3533,9 +3533,13 @@ if (!DOM.pageContainer) {
             );
             if (url) {
                 closeModal();
+                const totalToPay = Number(data?.total_amount) || 0;
+                const feeToPay = Number(data?.fee_amount) || 0;
                 showToast(
                     "Paiement prêt",
-                    "La page JessiKaPay va s'ouvrir. Termine le paiement puis reviens dans NexMarket."
+                    totalToPay > amount
+                        ? `Tu paies ${totalToPay} XAF (${amount} + ${feeToPay} de frais). Termine le paiement sur la page JessiKaPay, puis reviens dans NexMarket.`
+                        : "La page JessiKaPay va s'ouvrir. Termine le paiement puis reviens dans NexMarket."
                 );
                 if (tg) {
                     tg.openLink(url);
