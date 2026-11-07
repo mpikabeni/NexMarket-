@@ -1,0 +1,391 @@
+from __future__ import annotations
+
+import asyncio
+import logging
+
+from sqlalchemy import select
+
+from app.models.user import User
+from app.services.telegram_service import (
+    TelegramService,
+    get_telegram_service,
+)
+
+logger = logging.getLogger("nexmarket.notify")
+
+_background_tasks: set[asyncio.Task] = set()
+
+
+async def _send(telegram_id: int, text: str, reply_markup=None) -> None:
+    try:
+        await asyncio.wait_for(
+            get_telegram_service().send_message(
+                chat_id=telegram_id,
+                text=text,
+                reply_markup=reply_markup,
+            ),
+            timeout=10,
+        )
+    except Exception as exc:
+        # Une notification ratée ne doit JAMAIS casser un achat.
+        logger.warning(
+            "Notification Telegram non envoyée (%s) : %s",
+            telegram_id,
+            exc,
+        )
+
+
+def notify_telegram(
+    telegram_id: int | None,
+    text: str,
+    reply_markup=None,
+) -> None:
+    """Envoi non bloquant et sans exception (best effort)."""
+
+    if not telegram_id:
+        return
+
+    try:
+        task = asyncio.get_running_loop().create_task(
+            _send(telegram_id, text, reply_markup)
+        )
+    except RuntimeError:
+        return
+
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+
+
+async def notify_user_id(
+    db,
+    user_id: int | None,
+    text: str,
+    reply_markup=None,
+) -> None:
+    """Prévient un utilisateur à partir de son id NexMarket."""
+
+    if not user_id:
+        return
+
+    try:
+        telegram_id = (
+            await db.execute(
+                select(User.telegram_id).where(User.id == user_id)
+            )
+        ).scalar_one_or_none()
+    except Exception as exc:
+        logger.warning("Notification : utilisateur illisible : %s", exc)
+        return
+
+    notify_telegram(telegram_id, text, reply_markup)
+
+
+async def notify_admins(db, text: str, reply_markup=None) -> None:
+    """Prévient tous les administrateurs (copie d'information)."""
+
+    for chat_id in await admin_chat_ids(db):
+        notify_telegram(chat_id, text, reply_markup)
+
+
+class NotificationService:
+    """
+    Notifications privées envoyées par le bot NexMarket.
+    """
+
+    def __init__(self, telegram_service: TelegramService):
+        self.telegram = telegram_service
+
+    async def notify_user(
+        self,
+        telegram_id: int,
+        message: str,
+    ) -> None:
+        await self.telegram.send_message(
+            chat_id=telegram_id,
+            text=message,
+        )
+
+    # ========================================================
+    # LISTING
+    # ========================================================
+
+    async def listing_submitted(
+        self,
+        telegram_id: int,
+        listing_title: str,
+    ) -> None:
+        await self.notify_user(
+            telegram_id,
+            (
+                "📋 Votre annonce a été envoyée pour vérification.\n\n"
+                f"Annonce : {listing_title}\n"
+                "Notre équipe va vérifier les informations avant "
+                "sa publication."
+            ),
+        )
+
+    async def listing_approved(
+        self,
+        telegram_id: int,
+        listing_title: str,
+    ) -> None:
+        await self.notify_user(
+            telegram_id,
+            (
+                "✅ Votre annonce a été approuvée.\n\n"
+                f"Annonce : {listing_title}\n"
+                "Elle peut maintenant être publiée sur NexMarket."
+            ),
+        )
+
+    async def listing_rejected(
+        self,
+        telegram_id: int,
+        listing_title: str,
+        reason: str | None = None,
+    ) -> None:
+        message = (
+            "❌ Votre annonce n'a pas été approuvée.\n\n"
+            f"Annonce : {listing_title}"
+        )
+
+        if reason:
+            message += f"\n\nMotif : {reason}"
+
+        await self.notify_user(
+            telegram_id,
+            message,
+        )
+
+    # ========================================================
+    # TRANSACTION
+    # ========================================================
+
+    async def transaction_created(
+        self,
+        telegram_id: int,
+        reference: str,
+    ) -> None:
+        await self.notify_user(
+            telegram_id,
+            (
+                "🛒 Nouvelle transaction créée.\n\n"
+                f"Référence : {reference}\n"
+                "La transaction est en attente de paiement."
+            ),
+        )
+
+    async def payment_confirmed(
+        self,
+        telegram_id: int,
+        reference: str,
+    ) -> None:
+        await self.notify_user(
+            telegram_id,
+            (
+                "💰 Paiement confirmé.\n\n"
+                f"Référence : {reference}\n"
+                "Les fonds sont maintenant protégés par NexMarket."
+            ),
+        )
+
+    async def admin_assigned(
+        self,
+        telegram_id: int,
+        reference: str,
+    ) -> None:
+        await self.notify_user(
+            telegram_id,
+            (
+                "👨‍💼 Un administrateur NexMarket a été assigné "
+                "à votre transaction.\n\n"
+                f"Référence : {reference}"
+            ),
+        )
+
+    async def transfer_started(
+        self,
+        telegram_id: int,
+        reference: str,
+    ) -> None:
+        await self.notify_user(
+            telegram_id,
+            (
+                "🔄 Le transfert du canal a commencé.\n\n"
+                f"Référence : {reference}\n"
+                "L'équipe NexMarket vérifie maintenant le transfert."
+            ),
+        )
+
+    async def protection_started(
+        self,
+        telegram_id: int,
+        reference: str,
+        protection_minutes: int,
+    ) -> None:
+        await self.notify_user(
+            telegram_id,
+            (
+                "🛡️ La période de protection a commencé.\n\n"
+                f"Référence : {reference}\n"
+                f"Durée : {protection_minutes} minutes.\n\n"
+                "Les fonds restent protégés pendant cette période."
+            ),
+        )
+
+    async def transaction_completed(
+        self,
+        telegram_id: int,
+        reference: str,
+    ) -> None:
+        await self.notify_user(
+            telegram_id,
+            (
+                "✅ Transaction terminée.\n\n"
+                f"Référence : {reference}\n"
+                "La transaction NexMarket est maintenant clôturée."
+            ),
+        )
+
+    # ========================================================
+    # DISPUTE
+    # ========================================================
+
+    async def dispute_opened(
+        self,
+        telegram_id: int,
+        reference: str,
+    ) -> None:
+        await self.notify_user(
+            telegram_id,
+            (
+                "⚠️ Un litige a été ouvert.\n\n"
+                f"Référence : {reference}\n"
+                "Un administrateur NexMarket va examiner la situation."
+            ),
+        )
+
+    async def dispute_resolved(
+        self,
+        telegram_id: int,
+        reference: str,
+        resolution: str,
+    ) -> None:
+        await self.notify_user(
+            telegram_id,
+            (
+                "⚖️ Le litige a été traité.\n\n"
+                f"Référence : {reference}\n"
+                f"Décision : {resolution}"
+            ),
+        )
+
+    # ========================================================
+    # PAYOUT
+    # ========================================================
+
+    async def seller_paid(
+        self,
+        telegram_id: int,
+        reference: str,
+        amount: str,
+        currency: str,
+    ) -> None:
+        await self.notify_user(
+            telegram_id,
+            (
+                "💸 Votre paiement vendeur a été effectué.\n\n"
+                f"Référence : {reference}\n"
+                f"Montant : {amount} {currency}"
+            ),
+        )
+
+    # ========================================================
+    # REFUND
+    # ========================================================
+
+    async def refund_completed(
+        self,
+        telegram_id: int,
+        reference: str,
+        amount: str,
+        currency: str,
+    ) -> None:
+        await self.notify_user(
+            telegram_id,
+            (
+                "↩️ Votre remboursement a été effectué.\n\n"
+                f"Référence : {reference}\n"
+                f"Montant : {amount} {currency}"
+            ),
+        )
+
+
+# ============================================================
+# ADMIN : nouvelle annonce + photos de preuve
+# ============================================================
+
+async def _send_listing_proofs(chat_ids: list[int], text: str, photos: list[bytes]) -> None:
+    from telegram import InputMediaPhoto
+
+    bot = get_telegram_service().bot
+
+    for chat_id in chat_ids:
+        try:
+            if len(photos) == 1:
+                await asyncio.wait_for(
+                    bot.send_photo(chat_id=chat_id, photo=photos[0], caption=text[:1000]),
+                    timeout=30,
+                )
+            else:
+                media = [
+                    InputMediaPhoto(
+                        media=photo,
+                        caption=text[:1000] if index == 0 else None,
+                    )
+                    for index, photo in enumerate(photos)
+                ]
+                await asyncio.wait_for(
+                    bot.send_media_group(chat_id=chat_id, media=media),
+                    timeout=40,
+                )
+        except Exception as exc:
+            logger.warning("Preuves non envoyées à l'admin %s : %s", chat_id, exc)
+
+
+def notify_admins_listing(chat_ids: list[int], text: str, photos: list[bytes]) -> None:
+    """Envoi non bloquant (les photos restent consultables dans la console)."""
+
+    if not chat_ids or not photos:
+        return
+
+    try:
+        task = asyncio.get_running_loop().create_task(
+            _send_listing_proofs(chat_ids, text, photos)
+        )
+    except RuntimeError:
+        return
+
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+
+
+async def admin_chat_ids(db) -> list[int]:
+    """ADMIN_TELEGRAM_ID + tous les comptes administrateurs en base."""
+
+    from app.config import settings
+
+    ids: set[int] = set()
+
+    if settings.ADMIN_TELEGRAM_ID:
+        ids.add(int(settings.ADMIN_TELEGRAM_ID))
+
+    try:
+        rows = await db.execute(
+            select(User.telegram_id).where(User.is_admin.is_(True))
+        )
+        ids.update(int(value) for (value,) in rows.all())
+    except Exception as exc:
+        logger.warning("Liste des admins illisible : %s", exc)
+
+    return sorted(ids)
