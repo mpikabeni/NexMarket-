@@ -409,9 +409,13 @@
 "XAF. Tu es prévenu dans le bot dès que JessiKaPay confirme.": "XAF. You are notified in the bot as soon as JessiKaPay confirms.",
 "1 annonce": "1 listing",
 "Montant réel :": "Actual amount:",
+"Les frais JessiKaPay sont déduits du montant déposé.": "JessiKaPay fees are deducted from the deposited amount.",
+"Tu recevras sur ton solde": "You will receive in your balance",
+"Tu paieras environ": "You will pay about",
+"(frais Mobile Money inclus)": "(Mobile Money fees included)",
 "Bonjour à vous": "Hello there"
 };
-    var PATTERNS = [["^Bonjour (.+)$", "Hello $1"], ["^(.+) est dans le presse-papiers\\.$", "$1 is in the clipboard."], ["^Le retrait minimum est de (.+) XAF\\.$", "The minimum withdrawal is $1 XAF."], ["^Retrait minimum : (.+) XAF\\.$", "Minimum withdrawal: $1 XAF."], ["^Active « (.+) » pour NexMarket dans les administrateurs du canal, puis actualise la liste\\.$", "Enable “$1” for NexMarket in the channel administrators, then refresh the list."], ["^Le serveur répond avec le code (\\d+)\\.$", "The server responded with code $1."], ["^Le serveur est indisponible \\(HTTP (\\d+)\\)\\.$", "The server is unavailable (HTTP $1)."], ["^Vérification du dépôt: (.+)$", "Deposit check: $1"], ["^(\\d+) annonces$", "$1 listings"], ["^· 1 vente$", "· 1 sale"], ["^· (\\d+) ventes$", "· $1 sales"], ["^(.+) abonnés$", "$1 subscribers"], ["^(.+) abonnés · (.+)$", "$1 subscribers · $2"]].map(function (p) { return [new RegExp(p[0]), p[1]]; });
+    var PATTERNS = [["^Bonjour (.+)$", "Hello $1"], ["^(.+) est dans le presse-papiers\\.$", "$1 is in the clipboard."], ["^Le retrait minimum est de (.+) XAF\\.$", "The minimum withdrawal is $1 XAF."], ["^Retrait minimum : (.+) XAF\\.$", "Minimum withdrawal: $1 XAF."], ["^Active « (.+) » pour NexMarket dans les administrateurs du canal, puis actualise la liste\\.$", "Enable “$1” for NexMarket in the channel administrators, then refresh the list."], ["^Le serveur répond avec le code (\\d+)\\.$", "The server responded with code $1."], ["^Le serveur est indisponible \\(HTTP (\\d+)\\)\\.$", "The server is unavailable (HTTP $1)."], ["^Vérification du dépôt: (.+)$", "Deposit check: $1"], ["^(\\d+) annonces$", "$1 listings"], ["^· 1 vente$", "· 1 sale"], ["^· (\\d+) ventes$", "· $1 sales"], ["^(.+) abonnés$", "$1 subscribers"], ["^(.+) abonnés · (.+)$", "$1 subscribers · $2"], ["^Frais JessiKaPay \\((.+)\\)$", "JessiKaPay fee ($1)"]].map(function (p) { return [new RegExp(p[0]), p[1]]; });
     var lang = "fr";
     var records = new WeakMap();      // nœud texte -> {src, out}
     var attrRecords = new WeakMap();  // élément -> {attr: {src, out}}

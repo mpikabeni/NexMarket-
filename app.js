@@ -3315,6 +3315,63 @@ if (!DOM.pageContainer) {
     /* =====================================================
        DEPOSIT
     ===================================================== */
+    /* Frais JessiKaPay sur un dépôt : 6 % déduits du montant déposé (le
+       wallet reçoit le NET) + 3 % de frais Mobile Money payés en plus.
+       Mêmes arrondis que le serveur ; les taux viennent de /deposits/fees. */
+    const DEPOSIT_FEES = { commission: 0.06, user: 0.03 };
+
+    function depositQuote(amount) {
+        const gross = Math.floor(Number(amount) || 0);
+        const net = Math.floor(gross * (1 - DEPOSIT_FEES.commission));
+        return {
+            commission: gross - net,
+            net,
+            total: Math.ceil(gross * (1 + DEPOSIT_FEES.user))
+        };
+    }
+
+    function renderDepositQuote() {
+        const box = document.getElementById("depositQuote");
+        if (!box) {
+            return;
+        }
+        const amount = Number(document.getElementById("depositAmount")?.value);
+        if (!Number.isFinite(amount) || amount <= 0) {
+            box.innerHTML = `<p class="deposit-quote-note">Les frais JessiKaPay sont déduits du montant déposé.</p>`;
+            return;
+        }
+        const q = depositQuote(amount);
+        const pct = `${Math.round(DEPOSIT_FEES.commission * 1000) / 10} %`;
+        const xaf = (value) => `${formatNumber(value)} XAF`;
+        box.innerHTML = `
+            <div class="deposit-quote-row">
+                <span>Frais JessiKaPay (${pct})</span>
+                <b>− ${xaf(q.commission)}</b>
+            </div>
+            <div class="deposit-quote-row deposit-quote-net">
+                <span>Tu recevras sur ton solde</span>
+                <b>${xaf(q.net)}</b>
+            </div>
+            <div class="deposit-quote-row">
+                <span>Tu paieras environ</span>
+                <b>${xaf(q.total)}</b>
+            </div>
+            <small>(frais Mobile Money inclus)</small>`;
+    }
+
+    async function loadDepositFees() {
+        try {
+            const data = await apiRequest("/deposits/fees");
+            if (Number(data?.commission_rate) >= 0 && Number(data?.user_fee_rate) >= 0) {
+                DEPOSIT_FEES.commission = Number(data.commission_rate);
+                DEPOSIT_FEES.user = Number(data.user_fee_rate);
+                renderDepositQuote();
+            }
+        } catch (error) {
+            /* taux par défaut conservés */
+        }
+    }
+
     function openWalletDeposit(
         suggestedAmount = ""
     ) {
@@ -3370,6 +3427,11 @@ if (!DOM.pageContainer) {
                             </span>
                         </div>
                     </div>
+                    <div
+                        class="deposit-quote"
+                        id="depositQuote"
+                        aria-live="polite"
+                    ></div>
                     <div class="modal-field">
                         <span class="modal-field-label">
                             Pays d'origine
@@ -3461,6 +3523,11 @@ if (!DOM.pageContainer) {
                 </form>
             </div>
         `);
+        document
+            .getElementById("depositAmount")
+            ?.addEventListener("input", renderDepositQuote);
+        renderDepositQuote();
+        loadDepositFees();
         document
             .querySelectorAll("#depositCountryGrid .country-option")
             .forEach((option) => {
