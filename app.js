@@ -57,7 +57,8 @@
         photoChecked: false,
         listingsError: "",
         selectedSubscribers: "all",
-        selectedPrice: "all"
+        selectedPrice: "all",
+        rates: null
     };
     /* =====================================================
        DOM
@@ -455,6 +456,72 @@
             .replaceAll('"', "&quot;")
             .replaceAll("'", "&#039;");
     }
+    /* ---------- Langue + devise d'affichage ----------
+       Les montants réels (soldes, dépôts, retraits, paiements) restent
+       TOUJOURS en XAF. La devise choisie dans Paramètres ne change que
+       l'affichage : EUR (parité fixe 655,957) ou USD (taux du serveur). */
+    const EUR_XAF_PEG = 655.957;
+    const DISPLAY_CURRENCIES = ["XAF", "EUR", "USD"];
+    const RATES_CACHE_KEY = "nexmarket_rates_v1";
+
+    function uiLocale() {
+        return window.NexI18n ? window.NexI18n.locale() : "fr-FR";
+    }
+    function displayCurrency() {
+        const value = String(state.user?.display_currency || "XAF").toUpperCase();
+        return DISPLAY_CURRENCIES.includes(value) ? value : "XAF";
+    }
+    /* Valeur d'une unité de `cur` en XAF (null si le taux est inconnu). */
+    function xafPer(cur) {
+        const code = String(cur || "XAF").toUpperCase();
+        if (code === "FCFA" || code === "XAF" || code === "XOF") {
+            return 1;
+        }
+        if (code === "EUR") {
+            return EUR_XAF_PEG;
+        }
+        if (code === "USD") {
+            const perXaf = Number(state.rates?.rates?.USD);
+            return perXaf > 0 ? 1 / perXaf : null;
+        }
+        return null;
+    }
+    function convertAmount(amount, from, to) {
+        const a = xafPer(from);
+        const b = xafPer(to);
+        if (!a || !b) {
+            return null;
+        }
+        return (Number(amount) * a) / b;
+    }
+    function readRatesCache() {
+        try {
+            const cached = JSON.parse(localStorage.getItem(RATES_CACHE_KEY) || "null");
+            if (cached?.data?.rates && Date.now() - cached.t < 12 * 3600 * 1000) {
+                state.rates = cached.data;
+            }
+        } catch (error) {
+            /* stockage indisponible : sans conséquence */
+        }
+    }
+    async function loadRates() {
+        try {
+            const data = await apiRequest("/rates");
+            if (data?.rates) {
+                state.rates = data;
+                try {
+                    localStorage.setItem(
+                        RATES_CACHE_KEY,
+                        JSON.stringify({ t: Date.now(), data })
+                    );
+                } catch (error) { /* ignoré */ }
+                return true;
+            }
+        } catch (error) {
+            console.warn("Taux de change:", error.message);
+        }
+        return false;
+    }
     function formatMoney(
         amount,
         currency = "FCFA"
@@ -466,8 +533,29 @@
         ) {
             return "—";
         }
+        const target = displayCurrency();
+        const source = String(currency || "FCFA").toUpperCase();
+        const sourceIsXaf = ["FCFA", "XAF", "XOF"].includes(source);
+        const sameCurrency =
+            target === "XAF" ? sourceIsXaf : source === target;
+
+        if (!sameCurrency) {
+            const converted = convertAmount(amount, source, target);
+            if (converted !== null && Number.isFinite(converted)) {
+                try {
+                    const text = new Intl.NumberFormat(uiLocale(), {
+                        style: "currency",
+                        currency: target,
+                        currencyDisplay: "narrowSymbol",
+                        minimumFractionDigits: converted < 100 ? 2 : 0,
+                        maximumFractionDigits: converted < 100 ? 2 : 0
+                    }).format(converted);
+                    return `≈ ${text}`;
+                } catch (error) { /* retombe sur l'affichage normal */ }
+            }
+        }
         return `${new Intl.NumberFormat(
-            "fr-FR"
+            uiLocale()
         ).format(Number(amount))} ${currency}`;
     }
     function formatNumber(value) {
@@ -478,7 +566,7 @@
             return "—";
         }
         return new Intl.NumberFormat(
-            "fr-FR"
+            uiLocale()
         ).format(Number(value));
     }
     function formatDate(value) {
@@ -495,7 +583,7 @@
             return "—";
         }
         return new Intl.DateTimeFormat(
-            "fr-FR",
+            uiLocale(),
             {
                 day: "2-digit",
                 month: "2-digit",
@@ -1539,11 +1627,11 @@ if (!DOM.pageContainer) {
         }
 
         if (number >= 1000000) {
-            return `${(number / 1000000).toFixed(1).replace(".", ",")} M`;
+            return `${(number / 1000000).toFixed(1).replace(".", uiLocale() === "en-US" ? "." : ",")} M`;
         }
 
         if (number >= 1000) {
-            return `${(number / 1000).toFixed(1).replace(".", ",")} K`;
+            return `${(number / 1000).toFixed(1).replace(".", uiLocale() === "en-US" ? "." : ",")} K`;
         }
 
         return String(number);
@@ -2203,6 +2291,7 @@ if (!DOM.pageContainer) {
        ACCÈS : bot démarré + canal NEXA rejoint (obligatoire)
     ===================================================== */
     const ACCESS_CODES = ["bot_not_started", "channel_required"];
+    const SUPPORT_GROUP_URL = "https://t.me/+t2Cb3lYlg_RmMjg0";
     const FALLBACK_BOT_URL = "https://t.me/NexaMarketShopbot?start=app";
     const FALLBACK_CHANNEL_URL = "https://t.me/Nexa_CG";
     let accessBlockedError = null;
@@ -2355,6 +2444,7 @@ if (!DOM.pageContainer) {
                         telegram_id: user.telegram_id,
                         nexa_id: user.nexa_id,
                         currency: user.currency,
+                        display_currency: user.display_currency,
                         language: user.language
                     })
                 );
@@ -2466,14 +2556,25 @@ if (!DOM.pageContainer) {
                 telegramUser.photo_url ||
                 backendUser.photo_url ||
                 "",
+            // Devise du COMPTE (argent réel) : XAF. La préférence d'affichage
+            // (EUR / USD) est gardée à part dans display_currency.
             currency:
                 backendUser.currency ||
-                backendUser.preferred_currency ||
                 "XAF",
+            display_currency:
+                String(backendUser.preferred_currency || "XAF").toUpperCase(),
             language:
                 backendUser.language ||
                 "fr"
         };
+        // Première utilisation sur cet appareil : on reprend la langue du compte.
+        if (
+            window.NexI18n &&
+            !window.NexI18n.stored() &&
+            state.user.language === "en"
+        ) {
+            window.NexI18n.setLang("en");
+        }
         writeUserCache(state.user);
         updateTelegramProfile();
         updateNexaIdDisplay();
@@ -3136,6 +3237,12 @@ if (!DOM.pageContainer) {
                     <strong>
                         ${renderMoney(available, currency)}
                     </strong>
+                    ${displayCurrency() !== "XAF"
+                        ? (() => {
+                            const real = `${new Intl.NumberFormat(uiLocale()).format(Number(available) || 0)} XAF`;
+                            return `<small class="wallet-real-note">Montant réel : <span class="money" data-real="${escapeHTML(real)}">${isBalanceHidden() ? "••••••" : escapeHTML(real)}</span></small>`;
+                        })()
+                        : ""}
                     <div class="wallet-id">
                         NEXA ID
                         <b>
@@ -3626,7 +3733,7 @@ if (!DOM.pageContainer) {
                             </span>
                         </div>
                         <small class="modal-field-hint">
-                            Retrait minimum : ${MIN_WITHDRAWAL.toLocaleString("fr-FR")} XAF.
+                            Retrait minimum : ${MIN_WITHDRAWAL.toLocaleString(uiLocale())} XAF.
                             Tu es prévenu dans le bot dès que JessiKaPay confirme.
                         </small>
                     </div>
@@ -3920,7 +4027,7 @@ if (!DOM.pageContainer) {
         if (amount < MIN_WITHDRAWAL) {
             showModalError(
                 "Montant trop faible",
-                `Le retrait minimum est de ${MIN_WITHDRAWAL.toLocaleString("fr-FR")} XAF.`
+                `Le retrait minimum est de ${MIN_WITHDRAWAL.toLocaleString(uiLocale())} XAF.`
             );
             return;
         }
@@ -6065,9 +6172,26 @@ if (!DOM.pageContainer) {
     /* =====================================================
        SETTINGS
     ===================================================== */
+    function settingsSegment(name, items, active) {
+        return `
+            <div class="segmented" data-setting="${name}" role="group">
+                ${items
+                    .map(
+                        ([value, label]) => `
+                    <button
+                        type="button"
+                        class="${value === active ? "active" : ""}"
+                        data-value="${value}"
+                        aria-pressed="${value === active}"
+                    >${label}</button>`
+                    )
+                    .join("")}
+            </div>`;
+    }
+
     function openSettings() {
-        const user =
-            state.user || {};
+        const lang = window.NexI18n ? window.NexI18n.getLang() : "fr";
+        const cur = displayCurrency();
         openModal(`
             <div class="settings-modal">
                 <div class="modal-header-content">
@@ -6081,38 +6205,31 @@ if (!DOM.pageContainer) {
                     </div>
                 </div>
                 <div class="settings-list">
-                    <button
-                        type="button"
-                        data-action="language"
-                    >
-                        ${ICONS.message}
-                        <span>
-                            Langue
-                        </span>
-                        <strong>
-                            ${
-                                user.language ===
-                                "en"
-                                    ? "English"
-                                    : "Français"
-                            }
-                        </strong>
-                    </button>
-                    <button
-                        type="button"
-                        data-action="currency"
-                    >
-                        ${ICONS.wallet}
-                        <span>
-                            Devise
-                        </span>
-                        <strong>
-                            ${
-                                user.currency ||
-                                "XAF"
-                            }
-                        </strong>
-                    </button>
+                    <div class="settings-group">
+                        <div class="settings-group-title">
+                            ${ICONS.message}
+                            <span>Langue</span>
+                        </div>
+                        ${settingsSegment(
+                            "language",
+                            [["fr", "Français"], ["en", "English"]],
+                            lang
+                        )}
+                    </div>
+                    <div class="settings-group">
+                        <div class="settings-group-title">
+                            ${ICONS.wallet}
+                            <span>Devise d'affichage</span>
+                        </div>
+                        ${settingsSegment(
+                            "currency",
+                            [["XAF", "FCFA"], ["EUR", "Euro €"], ["USD", "Dollar $"]],
+                            cur
+                        )}
+                        <p class="settings-note">
+                            Tes soldes, dépôts et retraits restent en XAF. Les autres devises sont affichées à titre indicatif.
+                        </p>
+                    </div>
                     <button
                         type="button"
                         data-action="about"
@@ -6138,6 +6255,55 @@ if (!DOM.pageContainer) {
         `);
         bindSettingsActions();
     }
+
+    /* Enregistre une préférence : appliquée tout de suite, puis envoyée au
+       serveur (une panne réseau ne bloque jamais le changement). */
+    async function saveSetting(name, value) {
+        if (name === "language") {
+            state.user = { ...(state.user || {}), language: value };
+            window.NexI18n?.setLang(value);
+        } else {
+            value = String(value).toUpperCase();
+            state.user = { ...(state.user || {}), display_currency: value };
+        }
+
+        writeUserCache(state.user);
+
+        document
+            .querySelectorAll(`.segmented[data-setting="${name}"] button`)
+            .forEach((button) => {
+                const on = button.dataset.value === value;
+                button.classList.toggle("active", on);
+                button.setAttribute("aria-pressed", String(on));
+            });
+
+        if (name === "currency" && value === "USD" && !state.rates?.rates?.USD) {
+            await loadRates();
+            if (!state.rates?.rates?.USD) {
+                showToast(
+                    "Devise",
+                    "Le taux du dollar n'est pas disponible pour le moment."
+                );
+            }
+        }
+
+        /* Redessine la page ouverte avec la nouvelle langue / devise. */
+        navigateTo(state.currentPage || "home").catch(() => {});
+
+        try {
+            await apiRequest("/users/me", {
+                method: "PATCH",
+                body: JSON.stringify(
+                    name === "language"
+                        ? { language: value }
+                        : { preferred_currency: value }
+                )
+            });
+        } catch (error) {
+            console.warn("Préférence non enregistrée:", error.message);
+        }
+    }
+
     /* =====================================================
        ABOUT
     ===================================================== */
@@ -6297,11 +6463,11 @@ if (!DOM.pageContainer) {
                 () => {
                     if (tg) {
                         tg.openTelegramLink(
-                            "https://t.me/Nexa_CG"
+                            SUPPORT_GROUP_URL
                         );
                     } else {
                         window.open(
-                            "https://t.me/Nexa_CG",
+                            SUPPORT_GROUP_URL,
                             "_blank"
                         );
                     }
@@ -6638,27 +6804,22 @@ if (!DOM.pageContainer) {
                                 "support"
                             ) {
                                 openSupport();
-                            } else if (
-                                action ===
-                                "language"
-                            ) {
-                                showToast(
-                                    "Langue",
-                                    "Le changement de langue sera disponible prochainement."
-                                );
-                            } else if (
-                                action ===
-                                "currency"
-                            ) {
-                                showToast(
-                                    "Devise",
-                                    "La devise actuelle est XAF."
-                                );
                             }
                         }
                     );
                 }
             );
+        document
+            .querySelectorAll(".segmented button")
+            .forEach((button) => {
+                button.addEventListener("click", () => {
+                    const setting =
+                        button.closest(".segmented")?.dataset.setting;
+                    if (setting) {
+                        saveSetting(setting, button.dataset.value);
+                    }
+                });
+            });
     }
     function bindMyListingActions() {
         document
@@ -7047,6 +7208,8 @@ async function initApp() {
         console.error("Erreur interface NexMarket:", error);
     }
 
+    readRatesCache();
+
     /* Nom + photo connus de Telegram : affichés tout de suite. */
     const telegramUser = getTelegramUser();
 
@@ -7059,6 +7222,7 @@ async function initApp() {
                 telegram_id: telegramUser.id,
                 nexa_id: cached.nexa_id,
                 currency: cached.currency || "XAF",
+                display_currency: cached.display_currency || "XAF",
                 language: cached.language || "fr"
             };
         }
@@ -7102,6 +7266,13 @@ async function initApp() {
 
         setSplashStatus("Chargement des canaux…");
         await homeReady;
+
+        /* Taux de change (affichage EUR / USD) : en arrière-plan. */
+        loadRates().then((ok) => {
+            if (ok && displayCurrency() !== "XAF") {
+                navigateTo(state.currentPage || "home").catch(() => {});
+            }
+        });
 
         workDone = true;
         setSplashStatus("Presque prêt…");

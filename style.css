@@ -3033,3 +3033,81 @@ a.secondary-action.channel-visit{
   color:#fff;background:linear-gradient(135deg,var(--purple),var(--purple-dark))
 }
 .jp-start-button:active{transform:scale(.97)}
+
+/* ============================================================
+   PARAMÈTRES : langue + devise d'affichage (v19)
+============================================================ */
+.modal-content .settings-group {
+    width: 100% !important;
+    box-sizing: border-box !important;
+    padding: 12px 14px 14px !important;
+    border-radius: 17px !important;
+    border: 1px solid rgba(255,255,255,.08) !important;
+    background: rgba(255,255,255,.045) !important;
+}
+
+.modal-content .settings-group-title {
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    margin-bottom: 11px !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    color: #f4f4f7 !important;
+}
+
+.modal-content .settings-group-title > svg {
+    width: 18px !important;
+    height: 18px !important;
+    color: #a78bfa !important;
+    flex: none !important;
+}
+
+.modal-content .segmented {
+    display: flex !important;
+    gap: 6px !important;
+    padding: 4px !important;
+    border-radius: 14px !important;
+    background: rgba(0,0,0,.28) !important;
+}
+
+.modal-content .segmented > button {
+    flex: 1 1 0 !important;
+    min-width: 0 !important;
+    min-height: 40px !important;
+    margin: 0 !important;
+    padding: 8px 6px !important;
+    border: 1px solid transparent !important;
+    border-radius: 11px !important;
+    background: transparent !important;
+    color: #b4b4c8 !important;
+    font-family: inherit !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    box-shadow: none !important;
+    cursor: pointer !important;
+    transition: background .15s ease, color .15s ease !important;
+}
+
+.modal-content .segmented > button.active {
+    background: linear-gradient(135deg, #a05cff, #7c3aed) !important;
+    color: #fff !important;
+    box-shadow: 0 4px 14px rgba(124,58,237,.35) !important;
+}
+
+.modal-content .settings-note {
+    margin: 10px 2px 0 !important;
+    font-size: 10.5px !important;
+    line-height: 1.45 !important;
+    color: #8f8fa8 !important;
+}
+
+.wallet-real-note {
+    display: block;
+    margin-top: 4px;
+    font-size: 10.5px;
+    font-weight: 600;
+    color: #a3a3b8;
+}
