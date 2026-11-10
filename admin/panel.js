@@ -779,7 +779,7 @@
           <div class="item-card">
             <div class="item-main"><strong>${esc(a.name || "Administrateur")}</strong>
               <span class="sub">${a.username ? "@" + esc(a.username) + " · " : ""}${esc(a.nexa_id || "")} · Telegram ${esc(a.telegram_id)}</span></div>
-            ${a.is_primary ? `<span class="badge info">Principal</span>` : ""}
+            ${a.is_primary ? `<span class="badge info">Principal</span>` : `<button class="btn danger" data-act="remove-admin" data-tg="${esc(a.telegram_id)}" data-name="${esc(a.name || "cet admin")}" type="button">Retirer</button>`}
           </div>`).join("")
       : `<div class="empty-state">Aucun administrateur.</div>`;
   }
@@ -879,6 +879,25 @@
           await api(`/admin/users/${id}/status?active=${makeActive}`, { method: "PATCH" });
           toast(makeActive ? "Utilisateur débloqué." : "Utilisateur bloqué.");
           await loadUsers();
+        });
+        break;
+
+      case "add-admin":
+        run(target, async () => {
+          const tg = (prompt("Telegram ID de la personne (elle doit avoir envoyé /start au bot) :") || "").trim();
+          if (!/^\d+$/.test(tg)) { if (tg) toast("Le Telegram ID doit être un nombre."); return; }
+          await api("/admin/admins", { method: "POST", body: JSON.stringify({ telegram_id: Number(tg) }) });
+          toast("Administrateur ajouté.");
+          await loadAdmins();
+        });
+        break;
+
+      case "remove-admin":
+        run(target, async () => {
+          if (!confirm(`Retirer « ${target.dataset.name} » des administrateurs ?`)) return;
+          await api(`/admin/admins/${target.dataset.tg}`, { method: "DELETE" });
+          toast("Administrateur retiré.");
+          await loadAdmins();
         });
         break;
 
