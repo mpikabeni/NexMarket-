@@ -48,6 +48,7 @@
       <button class="nav-item" data-page="messages" type="button"><span class="nav-icon">▱</span><span>Messages</span></button>
       <button class="nav-item" data-page="announcements" type="button"><span class="nav-icon">➤</span><span>Annonces</span></button>
       <button class="nav-item" data-page="deposits" type="button"><span class="nav-icon">↥</span><span>Dépôts</span></button>
+      <button class="nav-item" data-page="gram" type="button"><span class="nav-icon">◇</span><span>GRAM</span><span class="nav-badge" id="gramBadge">0</span></button>
       <button class="nav-item" data-page="withdrawals" type="button"><span class="nav-icon">↧</span><span>Retraits à vérifier</span></button>
       <button class="nav-item" data-page="admins" type="button"><span class="nav-icon">◆</span><span>Administrateurs</span></button>
       <button class="nav-item" data-page="wallet" type="button"><span class="nav-icon">◈</span><span>Portefeuille NEXA</span></button>
@@ -206,6 +207,16 @@
         <div class="table-panel"><div class="table-wrapper"><table>
           <thead><tr><th>Référence</th><th>Utilisateur</th><th>Montant</th><th>Statut</th><th>Date</th><th></th></tr></thead>
           <tbody id="depositsTableBody"></tbody>
+        </table></div></div>
+      </section>
+
+      <!-- ============ GRAM (TON) ============ -->
+      <section class="admin-page" data-section="gram">
+        <div class="section-header"><div><h2>Paiements GRAM</h2><p>Envoyez vous-même les GRAM depuis votre portefeuille, puis saisissez le hash : le serveur le vérifie sur la blockchain.</p></div></div>
+        <div id="gramInfo" class="muted" style="margin:0 0 12px"></div>
+        <div class="table-panel"><div class="table-wrapper"><table>
+          <thead><tr><th>Transaction</th><th>À faire</th><th>Envoyer à</th><th>Montant</th><th>Commission gardée</th><th></th></tr></thead>
+          <tbody id="gramTableBody"></tbody>
         </table></div></div>
       </section>
 

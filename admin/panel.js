@@ -263,6 +263,7 @@
     messages: ["Messages", "Discussions des transactions", loadMessages],
     announcements: ["Annonces", "Message à tous les utilisateurs", async () => {}],
     deposits: ["Dépôts", "Crédités automatiquement dès la confirmation JessiKaPay", loadDeposits],
+    gram: ["GRAM", "Envois à faire : vendeurs et remboursements", loadGram],
     withdrawals: ["Retraits à vérifier", "Seulement si JessiKaPay n'a pas pu confirmer (cas rare)", loadWithdrawals],
     admins: ["Administrateurs", "Comptes autorisés", loadAdmins],
     wallet: ["Portefeuille NEXA", "Commissions de la plateforme", loadWallet]
@@ -814,6 +815,28 @@
       : `<tr><td colspan="6"><div class="empty-state">Aucun retrait à vérifier.</div></td></tr>`;
   }
 
+  async function loadGram() {
+    const data = await api("/admin/gram/tasks");
+    const rows = data.tasks || [];
+    $("#gramBadge").textContent = rows.length;
+    $("#gramInfo").innerHTML = data.enabled
+      ? `Adresse de réception NexMarket : <code>${esc(data.address)}</code>`
+      : `<strong>Paiement GRAM désactivé</strong> : renseignez la variable GRAM_RECEIVE_ADDRESS sur Render (adresse copiée depuis votre portefeuille).`;
+    $("#gramTableBody").innerHTML = rows.length
+      ? rows.map((t) => `
+          <tr>
+            <td><strong>${esc(t.reference)}</strong></td>
+            <td>${t.kind === "release" ? "Payer le vendeur" : "Rembourser l'acheteur"}</td>
+            <td><code style="word-break:break-all">${esc(t.address || "—")}</code></td>
+            <td><strong>${esc(t.amount)} GRAM</strong></td>
+            <td>${t.kind === "release" ? esc(t.commission) + " GRAM" : "—"}</td>
+            <td class="actions"><span class="btn-row">
+              <button class="btn" data-act="gram-copy" data-value="${esc(t.address || "")}" type="button">Copier l'adresse</button>
+              <button class="btn ok" data-act="gram-sent" data-id="${t.id}" data-amount="${esc(t.amount)}" type="button">J'ai envoyé</button></span></td>
+          </tr>`).join("")
+      : `<tr><td colspan="6"><div class="empty-state">Aucun envoi GRAM en attente.</div></td></tr>`;
+  }
+
   const DEPOSIT_LABELS = {
     pending: ["En attente", "warn"], paid: ["Payé", "ok"], failed: ["Échoué", "bad"],
     expired: ["Expiré", "bad"], cancelled: ["Annulé", "bad"], rejected: ["Refusé", "bad"],
@@ -931,6 +954,32 @@
             <p class="modal-sub">Statut NexMarket : <strong>${esc(result.status)}</strong>${result.paid ? " — wallet crédité." : ""}</p>
             <pre style="white-space:pre-wrap;word-break:break-word;background:var(--surface-2);padding:12px;border-radius:12px;font-size:11.5px">${esc(JSON.stringify(result.provider, null, 2))}</pre>`);
           await loadDeposits();
+        });
+        break;
+
+      case "gram-copy":
+        navigator.clipboard.writeText(target.dataset.value || "")
+          .then(() => toast("Adresse copiée."))
+          .catch(() => toast("Copie impossible : " + (target.dataset.value || ""), true));
+        break;
+
+      case "gram-sent":
+        run(target, async () => {
+          const txHash = (prompt(`Collez le hash de votre envoi de ${target.dataset.amount} GRAM (visible dans l'historique de votre portefeuille) :`) || "").trim();
+          if (!txHash) return;
+          try {
+            await api(`/admin/gram/${id}/sent`, { method: "POST", body: JSON.stringify({ tx_hash: txHash }) });
+          } catch (error) {
+            // Blockchain injoignable : confirmation sans vérification, tracée.
+            if (/injoignable/i.test(error.message || "") &&
+                confirm(error.message + "\n\nConfirmer QUAND MÊME que l'envoi a bien été fait (non vérifié) ?")) {
+              await api(`/admin/gram/${id}/sent`, { method: "POST", body: JSON.stringify({ tx_hash: txHash, unverified: true }) });
+            } else {
+              throw error;
+            }
+          }
+          toast("Envoi enregistré : transaction clôturée.");
+          await loadGram();
         });
         break;
 
