@@ -58,7 +58,8 @@
         listingsError: "",
         selectedSubscribers: "all",
         selectedPrice: "all",
-        rates: null
+        rates: null,
+        sellPayMethod: "XAF"
     };
     /* =====================================================
        DOM
@@ -463,6 +464,11 @@
     const EUR_XAF_PEG = 655.957;
     const DISPLAY_CURRENCIES = ["XAF", "EUR", "USD"];
     const RATES_CACHE_KEY = "nexmarket_rates_v1";
+
+    /* Le paiement en GRAM (TON) est-il configuré côté serveur ? */
+    function gramEnabled() {
+        return Boolean(state.rates?.gram_enabled);
+    }
 
     function uiLocale() {
         return window.NexI18n ? window.NexI18n.locale() : "fr-FR";
@@ -2999,6 +3005,18 @@ if (!DOM.pageContainer) {
             return;
         }
         try {
+            // Annonce payée en GRAM : parcours différent (paiement on-chain).
+            let gramListing = state.listings.find(
+                (item) => Number(item.id) === Number(listingId)
+            );
+            if (!gramListing) {
+                const fetched = await apiRequest(`/listings/${listingId}`);
+                gramListing = fetched?.listing || fetched;
+            }
+            if (String(gramListing?.currency || "").toUpperCase() === "GRAM") {
+                openGramPurchase(gramListing);
+                return;
+            }
             const wallet =
                 await loadWallet();
             const available =
@@ -3076,6 +3094,143 @@ if (!DOM.pageContainer) {
             );
         }
     }
+    /* =====================================================
+       PAIEMENT EN GRAM (TON)
+       L'acheteur envoie le prix depuis son portefeuille Telegram vers
+       l'adresse de NexMarket, avec un commentaire unique : le serveur
+       constate le virement sur la blockchain, puis la transaction
+       démarre comme un achat normal (fonds bloqués chez NexMarket).
+    ===================================================== */
+    const GRAM_ADDRESS_KEY = "nexmarket_gram_address";
+    const GRAM_ADDRESS_PATTERN = /^[A-Za-z0-9_-]{48}$|^-?[01]:[0-9a-fA-F]{64}$/;
+
+    function openGramPurchase(listing) {
+        let saved = "";
+        try { saved = localStorage.getItem(GRAM_ADDRESS_KEY) || ""; } catch (e) { /* ignoré */ }
+        openModal(`
+            <div class="gram-modal">
+                <div class="modal-header-content">
+                    <div>
+                        <span class="section-kicker">PAIEMENT GRAM</span>
+                        <h2>Payer en GRAM</h2>
+                    </div>
+                </div>
+                <div class="gram-amount">${escapeHTML(formatNumber(listing.price))} GRAM</div>
+                <label class="modal-field">
+                    <span class="modal-field-label">Ton adresse GRAM</span>
+                    <input id="gramBuyerAddress" type="text" autocomplete="off" autocapitalize="off" spellcheck="false"
+                        placeholder="UQ… ou EQ…" value="${escapeHTML(saved)}">
+                </label>
+                <p class="gram-note">Elle sert uniquement à te rembourser si la transaction est annulée. Recopie-la depuis l'app « Argent » de Telegram.</p>
+                <p class="gram-note">Les GRAM restent bloqués chez NexMarket jusqu'à la fin de la transaction.</p>
+                <button class="primary-action full-width" type="button" id="gramContinue">Continuer</button>
+            </div>
+        `);
+        document.getElementById("gramContinue")?.addEventListener("click", async () => {
+            const address = (document.getElementById("gramBuyerAddress")?.value || "").trim();
+            if (!GRAM_ADDRESS_PATTERN.test(address)) {
+                showToast("Adresse GRAM invalide", "Recopie ton adresse GRAM depuis l'app « Argent » de Telegram.");
+                return;
+            }
+            try { localStorage.setItem(GRAM_ADDRESS_KEY, address); } catch (e) { /* ignoré */ }
+            closeModal();
+            showLoading("Création de la transaction...");
+            try {
+                const data = await apiRequest("/transactions", {
+                    method: "POST",
+                    body: JSON.stringify({
+                        listing_id: Number(listing.id),
+                        buyer_gram_address: address
+                    })
+                });
+                const transaction = data?.transaction || data;
+                await loadTransactions();
+                openGramPayment(transaction);
+            } catch (error) {
+                await renderBuy();
+                showToast("Achat impossible", error.message || "La transaction n'a pas pu être créée.");
+            }
+        });
+    }
+
+    function openGramPayment(transaction) {
+        const pay = transaction?.gram_pay;
+        if (!pay) {
+            openTransaction(transaction?.id);
+            return;
+        }
+        const row = (label, value, key) => `
+            <div class="gram-field">
+                <span>${label}</span>
+                <code>${escapeHTML(value)}</code>
+                <button type="button" class="chip-button" data-gram-copy="${key}">Copier</button>
+            </div>`;
+        openModal(`
+            <div class="gram-modal">
+                <div class="modal-header-content">
+                    <div>
+                        <span class="section-kicker">PAIEMENT GRAM</span>
+                        <h2>Envoie ${escapeHTML(formatNumber(pay.amount))} GRAM</h2>
+                    </div>
+                </div>
+                ${row("À cette adresse", pay.address, "address")}
+                ${row("Commentaire (obligatoire)", pay.comment, "comment")}
+                <p class="gram-note"><strong>Important :</strong> ajoute exactement ce commentaire, sinon ton paiement ne pourra pas être reconnu. Envoie au moins ${escapeHTML(formatNumber(pay.amount))} GRAM.</p>
+                <button class="primary-action full-width" type="button" id="gramOpenWallet">Ouvrir mon portefeuille</button>
+                <div class="gram-wait" id="gramWait"><span class="gram-spin"></span><span>En attente du paiement…</span></div>
+                <button class="secondary-action full-width" type="button" id="gramLater">Je paierai plus tard</button>
+            </div>
+        `);
+        document.querySelectorAll("[data-gram-copy]").forEach((button) => {
+            button.addEventListener("click", async () => {
+                const value = pay[button.dataset.gramCopy] || "";
+                try {
+                    await navigator.clipboard.writeText(value);
+                    showToast("Copié", "Colle-le dans ton portefeuille.");
+                } catch (error) {
+                    showToast("Copie impossible", value);
+                }
+            });
+        });
+        document.getElementById("gramOpenWallet")?.addEventListener("click", () => {
+            try {
+                if (tg && typeof tg.openLink === "function") {
+                    tg.openLink(pay.link);
+                } else {
+                    window.location.href = pay.link;
+                }
+            } catch (error) {
+                showToast("Portefeuille", "Ouvre l'app « Argent » de Telegram et envoie le paiement avec l'adresse et le commentaire ci-dessus.");
+            }
+        });
+        document.getElementById("gramLater")?.addEventListener("click", () => {
+            closeModal();
+            navigateTo("messages").catch(() => {});
+        });
+        /* Suivi : le serveur lit la blockchain, on interroge la transaction. */
+        const timer = setInterval(async () => {
+            if (!document.getElementById("gramWait")) {
+                clearInterval(timer);
+                return;
+            }
+            try {
+                const data = await apiRequest(`/transactions/${transaction.id}`);
+                const fresh = data?.transaction || data;
+                if (fresh && fresh.status !== "pending_payment") {
+                    clearInterval(timer);
+                    closeModal();
+                    if (fresh.status === "cancelled") {
+                        showToast("Transaction annulée", "Le paiement n'a pas été reçu à temps.");
+                    } else {
+                        showToast("Paiement reçu", "Tes GRAM sont bloqués en sécurité. Un administrateur prend la transaction en charge.");
+                        await loadTransactions();
+                        openTransaction(transaction.id);
+                    }
+                }
+            } catch (error) { /* on réessaie au prochain tour */ }
+        }, 6000);
+    }
+
     /* =====================================================
        WALLET PAGE
     ===================================================== */
@@ -3715,11 +3870,7 @@ if (!DOM.pageContainer) {
                     "Paiement prêt",
                     "La page JessiKaPay va s'ouvrir. Termine le paiement puis reviens dans NexMarket."
                 );
-                if (tg) {
-                    tg.openLink(url);
-                } else {
-                    window.location.href = url;
-                }
+                openPaymentLink(url);
                 return;
             }
             /*
@@ -4295,14 +4446,35 @@ if (!DOM.pageContainer) {
                             </div>
                         </div>
                     </label>
+                    ${gramEnabled()
+                        ? `<div class="pay-method-wrap">
+                            <span class="pay-method-label">Moyen de paiement</span>
+                            <div class="segmented pay-method" id="sellPayMethod" role="group">
+                                <button type="button" data-pay="XAF" class="${state.sellPayMethod === "GRAM" ? "" : "active"}">JessiKaPay (FCFA)</button>
+                                <button type="button" data-pay="GRAM" class="${state.sellPayMethod === "GRAM" ? "active" : ""}">GRAM</button>
+                            </div>
+                        </div>`
+                        : ""}
+                    <label id="sellGramWrap" ${gramEnabled() && state.sellPayMethod === "GRAM" ? "" : "hidden"}>
+                        Ton adresse GRAM (tu y recevras le paiement)
+                        <input
+                            id="sellGramAddress"
+                            type="text"
+                            autocomplete="off"
+                            autocapitalize="off"
+                            spellcheck="false"
+                            placeholder="UQ… ou EQ… (copiée depuis ton portefeuille Telegram)"
+                        >
+                        <small>Recopie-la depuis l'app « Argent » de Telegram : une seule lettre fausse, et le paiement est perdu.</small>
+                    </label>
                     <label>
-                        Prix de vente
+                        <span id="sellPriceLabel">${state.sellPayMethod === "GRAM" && gramEnabled() ? "Prix de vente (GRAM)" : "Prix de vente"}</span>
                         <input
                             id="sellPrice"
                             type="number"
-                            min="1"
-                            step="1"
-                            placeholder="Ex : 50000"
+                            min="${state.sellPayMethod === "GRAM" && gramEnabled() ? "1" : "1"}"
+                            step="${state.sellPayMethod === "GRAM" && gramEnabled() ? "0.01" : "1"}"
+                            placeholder="${state.sellPayMethod === "GRAM" && gramEnabled() ? "Ex : 25" : "Ex : 50000"}"
                             required
                         >
                     </label>
@@ -4385,6 +4557,7 @@ if (!DOM.pageContainer) {
         applySellDraft();
         bindChannelType();
         bindProofs();
+        bindSellPayMethod();
         /* Affichés une seule fois : une visite ultérieure repart propre. */
         state.sellError = "";
         state.sellDraft = null;
@@ -4398,6 +4571,39 @@ if (!DOM.pageContainer) {
             );
         bindMyListingActions();
     }
+    /* Choix du moyen de paiement de l'annonce : JessiKaPay (FCFA) ou GRAM. */
+    function applySellPayMethod() {
+        const gram = gramEnabled() && state.sellPayMethod === "GRAM";
+        const wrap = document.getElementById("sellGramWrap");
+        const price = document.getElementById("sellPrice");
+        const label = document.getElementById("sellPriceLabel");
+        if (wrap) wrap.hidden = !gram;
+        if (label) label.textContent = gram ? "Prix de vente (GRAM)" : "Prix de vente";
+        if (price) {
+            price.step = gram ? "0.01" : "1";
+            price.placeholder = gram ? "Ex : 25" : "Ex : 50000";
+        }
+        document
+            .querySelectorAll("#sellPayMethod button")
+            .forEach((button) => {
+                const on = button.dataset.pay === (gram ? "GRAM" : "XAF");
+                button.classList.toggle("active", on);
+                button.setAttribute("aria-pressed", String(on));
+            });
+    }
+
+    function bindSellPayMethod() {
+        document
+            .querySelectorAll("#sellPayMethod button")
+            .forEach((button) => {
+                button.addEventListener("click", () => {
+                    state.sellPayMethod = button.dataset.pay === "GRAM" ? "GRAM" : "XAF";
+                    applySellPayMethod();
+                });
+            });
+        applySellPayMethod();
+    }
+
     /* =====================================================
        NEXMARKET CATEGORY PICKER
     ===================================================== */
@@ -4563,6 +4769,8 @@ if (!DOM.pageContainer) {
             category: document.getElementById("sellCategory")?.value || "",
             channelType: state.sellChannelType,
             price: document.getElementById("sellPrice")?.value || "",
+            gramAddress:
+                document.getElementById("sellGramAddress")?.value || "",
             description:
                 document.getElementById("sellDescription")?.value || ""
         };
@@ -4653,6 +4861,8 @@ if (!DOM.pageContainer) {
         const categoryText = document.getElementById("sellCategoryText");
 
         if (price) price.value = draft.price || "";
+        const gramInput = document.getElementById("sellGramAddress");
+        if (gramInput) gramInput.value = draft.gramAddress || "";
         if (description) description.value = draft.description || "";
 
         if (category && draft.category) {
@@ -4877,6 +5087,26 @@ if (!DOM.pageContainer) {
             "";
         const isPrivate = state.sellChannelType === "private";
         const detectedId = usernameInput?.dataset.channelId || "";
+        const payInGram = gramEnabled() && state.sellPayMethod === "GRAM";
+        const gramAddress = (
+            document.getElementById("sellGramAddress")?.value || ""
+        ).trim();
+
+        if (payInGram && !/^[A-Za-z0-9_-]{48}$|^-?[01]:[0-9a-fA-F]{64}$/.test(gramAddress)) {
+            showToast(
+                "Adresse GRAM invalide",
+                "Recopie ton adresse GRAM depuis l'app « Argent » de Telegram (48 caractères)."
+            );
+            return;
+        }
+
+        if (payInGram && price < 1) {
+            showToast(
+                "Prix invalide",
+                "Le prix minimum en GRAM est de 1 GRAM."
+            );
+            return;
+        }
 
         if (!username) {
             showToast(
@@ -4978,6 +5208,9 @@ if (!DOM.pageContainer) {
                                 price,
                                 category,
                                 description,
+                                ...(payInGram
+                                    ? { currency: "GRAM", gram_address: gramAddress }
+                                    : {}),
                                 proof_images: state.sellProofs
                             })
                     }
@@ -5478,7 +5711,11 @@ if (!DOM.pageContainer) {
                 Number(transaction.buyer_id) ===
                 Number(state.user?.id);
             const tid = escapeHTML(transaction.id);
+            const isGram = String(currency).toUpperCase() === "GRAM";
             const actionButtons = [
+                (status === "pending_payment" && isBuyer && transaction.gram_pay)
+                    ? `<button class="primary-action full-width" type="button" data-action="gram-pay" data-transaction-id="${tid}">Payer en GRAM</button>`
+                    : "",
                 isBuyer && status === "protection_period"
                     ? `<button class="primary-action full-width" type="button" data-action="confirm-receipt" data-transaction-id="${tid}">J'ai bien reçu le canal</button>`
                     : "",
@@ -5555,6 +5792,17 @@ if (!DOM.pageContainer) {
                             </p>
                         </div>
                     </div>
+                    ${isGram && status === "completed"
+                        ? `<div class="transaction-security">
+                            ${ICONS.lock}
+                            <div>
+                                <strong>${transaction.seller_paid_at ? "GRAM envoyés au vendeur" : "Envoi des GRAM en cours"}</strong>
+                                <p>${transaction.seller_paid_at
+                                    ? "L'administrateur a envoyé le paiement (moins la commission de 5 %)."
+                                    : "L'administrateur envoie le paiement au vendeur (moins la commission de 5 %)."}</p>
+                            </div>
+                        </div>`
+                        : ""}
                     <button
                         class="primary-action full-width"
                         type="button"
@@ -5593,6 +5841,11 @@ if (!DOM.pageContainer) {
                         );
                     }
                 );
+            document
+                .querySelector('[data-action="gram-pay"]')
+                ?.addEventListener("click", () => {
+                    openGramPayment(transaction);
+                });
             document
                 .querySelector('[data-action="confirm-receipt"]')
                 ?.addEventListener("click", () => {
@@ -7202,8 +7455,8 @@ async function checkPendingDeposit() {
         return;
     }
 
-    // Abandon après 15 minutes.
-    if (Date.now() - Number(pending.created_at || 0) > 15 * 60 * 1000) {
+    // Abandon après 35 minutes (le lien JessiKaPay expire au bout de 30).
+    if (Date.now() - Number(pending.created_at || 0) > 35 * 60 * 1000) {
         sessionStorage.removeItem("nexmarket_pending_deposit");
         return;
     }
@@ -7221,6 +7474,21 @@ async function checkPendingDeposit() {
 
             if (result?.paid) {
                 showToast("Dépôt reçu", "Ton solde a été mis à jour.");
+            } else if (
+                result?.status === "pending" &&
+                !pending.hinted &&
+                Date.now() - Number(pending.created_at || 0) > 90 * 1000
+            ) {
+                // Toujours « pending » chez JessiKaPay : le lien n'a pas été ouvert.
+                pending.hinted = true;
+                sessionStorage.setItem(
+                    "nexmarket_pending_deposit",
+                    JSON.stringify(pending)
+                );
+                showToast(
+                    "Paiement non reçu",
+                    "JessiKaPay n'a pas encore reçu ton paiement. Ouvre le lien de paiement depuis Telegram, avec le même compte, puis termine le paiement."
+                );
             }
         }
 
@@ -7251,6 +7519,21 @@ if (!window.__nexmarketDepositRefreshBound) {
             checkPendingDeposit();
         }
     }, 8000);
+}
+
+/* Le lien de paiement JessiKaPay (https://t.me/JessiKaPayBot/app?...) est
+   un lien TELEGRAM : il doit s'ouvrir dans Telegram (openTelegramLink).
+   Avec openLink il s'ouvre comme un site web, JessiKaPay ne reconnaît pas
+   le compte Telegram et le paiement n'est jamais confirmé. */
+function openPaymentLink(url) {
+    const isTelegramLink = /^https?:\/\/(t|telegram)\.me\//i.test(url);
+    if (tg && isTelegramLink && typeof tg.openTelegramLink === "function") {
+        tg.openTelegramLink(url);
+    } else if (tg && typeof tg.openLink === "function") {
+        tg.openLink(url);
+    } else {
+        window.location.href = url;
+    }
 }
 
 /* =====================================================
