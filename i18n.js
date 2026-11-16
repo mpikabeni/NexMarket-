@@ -413,42 +413,9 @@
 "Tu recevras sur ton solde": "You will receive in your balance",
 "Tu paieras environ": "You will pay about",
 "(frais Mobile Money inclus)": "(Mobile Money fees included)",
-"Ton adresse GRAM (tu y recevras le paiement)": "Your GRAM address (you will receive the payment there)",
-"UQ… ou EQ… (copiée depuis ton portefeuille Telegram)": "UQ… or EQ… (copied from your Telegram wallet)",
-"Recopie-la depuis l'app « Argent » de Telegram : une seule lettre fausse, et le paiement est perdu.": "Copy it from Telegram's “Money” app: a single wrong letter and the payment is lost.",
-"Prix de vente (GRAM)": "Sale price (GRAM)",
-"Ex : 25": "E.g. 25",
-"Adresse GRAM invalide": "Invalid GRAM address",
-"Recopie ton adresse GRAM depuis l'app « Argent » de Telegram (48 caractères).": "Copy your GRAM address from Telegram's “Money” app (48 characters).",
-"Recopie ton adresse GRAM depuis l'app « Argent » de Telegram.": "Copy your GRAM address from Telegram's “Money” app.",
-"Le prix minimum en GRAM est de 1 GRAM.": "The minimum price in GRAM is 1 GRAM.",
-"PAIEMENT GRAM": "GRAM PAYMENT",
-"Payer en GRAM": "Pay with GRAM",
-"Ton adresse GRAM": "Your GRAM address",
-"UQ… ou EQ…": "UQ… or EQ…",
-"Elle sert uniquement à te rembourser si la transaction est annulée. Recopie-la depuis l'app « Argent » de Telegram.": "It is only used to refund you if the transaction is cancelled. Copy it from Telegram's “Money” app.",
-"Les GRAM restent bloqués chez NexMarket jusqu'à la fin de la transaction.": "The GRAM stay held by NexMarket until the transaction ends.",
-"À cette adresse": "To this address",
-"Commentaire (obligatoire)": "Comment (required)",
-"Important :": "Important:",
-"Ouvrir mon portefeuille": "Open my wallet",
-"En attente du paiement…": "Waiting for the payment…",
-"Je paierai plus tard": "I will pay later",
-"Colle-le dans ton portefeuille.": "Paste it into your wallet.",
-"Portefeuille": "Wallet",
-"Ouvre l'app « Argent » de Telegram et envoie le paiement avec l'adresse et le commentaire ci-dessus.": "Open Telegram's “Money” app and send the payment with the address and comment above.",
-"Paiement reçu": "Payment received",
-"Tes GRAM sont bloqués en sécurité. Un administrateur prend la transaction en charge.": "Your GRAM are held safely. An administrator is taking over the transaction.",
-"Le paiement n'a pas été reçu à temps.": "The payment was not received in time.",
-"GRAM envoyés au vendeur": "GRAM sent to the seller",
-"Envoi des GRAM en cours": "GRAM transfer in progress",
-"L'administrateur a envoyé le paiement (moins la commission de 5 %).": "The administrator sent the payment (minus the 5% commission).",
-"L'administrateur envoie le paiement au vendeur (moins la commission de 5 %).": "The administrator is sending the payment to the seller (minus the 5% commission).",
-"JessiKaPay (FCFA)": "JessiKaPay (FCFA)",
-"GRAM": "GRAM",
 "Bonjour à vous": "Hello there"
 };
-    var PATTERNS = [["^Bonjour (.+)$", "Hello $1"], ["^(.+) est dans le presse-papiers\\.$", "$1 is in the clipboard."], ["^Le retrait minimum est de (.+) XAF\\.$", "The minimum withdrawal is $1 XAF."], ["^Retrait minimum : (.+) XAF\\.$", "Minimum withdrawal: $1 XAF."], ["^Active « (.+) » pour NexMarket dans les administrateurs du canal, puis actualise la liste\\.$", "Enable “$1” for NexMarket in the channel administrators, then refresh the list."], ["^Le serveur répond avec le code (\\d+)\\.$", "The server responded with code $1."], ["^Le serveur est indisponible \\(HTTP (\\d+)\\)\\.$", "The server is unavailable (HTTP $1)."], ["^Vérification du dépôt: (.+)$", "Deposit check: $1"], ["^(\\d+) annonces$", "$1 listings"], ["^· 1 vente$", "· 1 sale"], ["^· (\\d+) ventes$", "· $1 sales"], ["^(.+) abonnés$", "$1 subscribers"], ["^(.+) abonnés · (.+)$", "$1 subscribers · $2"], ["^Frais JessiKaPay \\((.+)\\)$", "JessiKaPay fee ($1)"], ["^Envoie (.+) GRAM$", "Send $1 GRAM"], ["^ajoute exactement ce commentaire, sinon ton paiement ne pourra pas être reconnu\\. Envoie au moins (.+) GRAM\\.$", "add exactly this comment, otherwise your payment cannot be recognized. Send at least $1 GRAM."]].map(function (p) { return [new RegExp(p[0]), p[1]]; });
+    var PATTERNS = [["^Bonjour (.+)$", "Hello $1"], ["^(.+) est dans le presse-papiers\\.$", "$1 is in the clipboard."], ["^Le retrait minimum est de (.+) XAF\\.$", "The minimum withdrawal is $1 XAF."], ["^Retrait minimum : (.+) XAF\\.$", "Minimum withdrawal: $1 XAF."], ["^Active « (.+) » pour NexMarket dans les administrateurs du canal, puis actualise la liste\\.$", "Enable “$1” for NexMarket in the channel administrators, then refresh the list."], ["^Le serveur répond avec le code (\\d+)\\.$", "The server responded with code $1."], ["^Le serveur est indisponible \\(HTTP (\\d+)\\)\\.$", "The server is unavailable (HTTP $1)."], ["^Vérification du dépôt: (.+)$", "Deposit check: $1"], ["^(\\d+) annonces$", "$1 listings"], ["^· 1 vente$", "· 1 sale"], ["^· (\\d+) ventes$", "· $1 sales"], ["^(.+) abonnés$", "$1 subscribers"], ["^(.+) abonnés · (.+)$", "$1 subscribers · $2"], ["^Frais JessiKaPay \\((.+)\\)$", "JessiKaPay fee ($1)"]].map(function (p) { return [new RegExp(p[0]), p[1]]; });
     var lang = "fr";
     var records = new WeakMap();      // nœud texte -> {src, out}
     var attrRecords = new WeakMap();  // élément -> {attr: {src, out}}
