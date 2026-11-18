@@ -50,6 +50,7 @@
         sort: "recent",
         sellDraft: null,
         sellProofs: [],
+        sellPreviews: [],
         sellChannelType: "public",
         sellError: "",
         authUser: null,
@@ -59,7 +60,7 @@
         selectedSubscribers: "all",
         selectedPrice: "all",
         rates: null,
-        sellPayMethod: "XAF"
+        sellPayMethod: null
     };
     /* =====================================================
        DOM
@@ -514,6 +515,7 @@
         try {
             const data = await apiRequest("/rates");
             if (data?.rates) {
+                const gramChanged = Boolean(state.rates?.gram_enabled) !== Boolean(data.gram_enabled);
                 state.rates = data;
                 try {
                     localStorage.setItem(
@@ -521,6 +523,9 @@
                         JSON.stringify({ t: Date.now(), data })
                     );
                 } catch (error) { /* ignoré */ }
+                if (gramChanged && state.currentPage === "sell") {
+                    navigateTo("sell").catch(() => {});
+                }
                 return true;
             }
         } catch (error) {
@@ -2645,6 +2650,53 @@ if (!DOM.pageContainer) {
     /* =====================================================
        LISTING DETAILS
     ===================================================== */
+    /* Visionneuse plein écran : flèches, balayage et fermeture. */
+    function openImageViewer(urls, startIndex) {
+        if (!urls.length) {
+            return;
+        }
+        let index = Math.max(0, Math.min(startIndex, urls.length - 1));
+        const overlay = document.createElement("div");
+        overlay.className = "image-viewer";
+        overlay.innerHTML = `
+            <button type="button" class="iv-close" aria-label="Fermer">×</button>
+            <button type="button" class="iv-nav iv-prev" aria-label="Précédente">‹</button>
+            <img class="iv-img" alt="">
+            <button type="button" class="iv-nav iv-next" aria-label="Suivante">›</button>
+            <div class="iv-count"></div>`;
+        document.body.appendChild(overlay);
+        const img = overlay.querySelector(".iv-img");
+        const count = overlay.querySelector(".iv-count");
+        const show = () => {
+            img.src = urls[index];
+            count.textContent = `${index + 1} / ${urls.length}`;
+            overlay.querySelector(".iv-prev").hidden = urls.length < 2;
+            overlay.querySelector(".iv-next").hidden = urls.length < 2;
+        };
+        const step = (delta) => {
+            index = (index + delta + urls.length) % urls.length;
+            show();
+        };
+        const close = () => overlay.remove();
+        overlay.querySelector(".iv-close").addEventListener("click", close);
+        overlay.querySelector(".iv-prev").addEventListener("click", () => step(-1));
+        overlay.querySelector(".iv-next").addEventListener("click", () => step(1));
+        overlay.addEventListener("click", (event) => {
+            if (event.target === overlay) close();
+        });
+        let startX = null;
+        overlay.addEventListener("touchstart", (event) => {
+            startX = event.touches[0].clientX;
+        }, { passive: true });
+        overlay.addEventListener("touchend", (event) => {
+            if (startX === null) return;
+            const dx = event.changedTouches[0].clientX - startX;
+            startX = null;
+            if (Math.abs(dx) > 50) step(dx < 0 ? 1 : -1);
+        });
+        show();
+    }
+
     async function openListing(
         listingId
     ) {
@@ -2702,6 +2754,8 @@ if (!DOM.pageContainer) {
             const perThousand = listing.price_per_1k;
             const published =
                 listing.published_at || listing.created_at;
+            const previewUrls = (Array.isArray(listing.preview_ids) ? listing.preview_ids : [])
+                .map((id) => `${CONFIG.API_BASE_URL}/listings/previews/${id}`);
             openModal(`
                 <div class="listing-detail">
                     <div class="detail-image">
@@ -2724,6 +2778,17 @@ if (!DOM.pageContainer) {
                                 `
                         }
                     </div>
+                    ${previewUrls.length
+                        ? `<div class="preview-gallery">
+                            <span class="preview-title">Aperçu du canal</span>
+                            <div class="preview-strip">
+                                ${previewUrls.map((url, index) => `
+                                    <button type="button" class="preview-thumb" data-preview-index="${index}" aria-label="Voir la photo ${index + 1}">
+                                        <img src="${escapeHTML(url)}" alt="Aperçu ${index + 1}" loading="lazy">
+                                    </button>`).join("")}
+                            </div>
+                        </div>`
+                        : ""}
                     <div class="detail-header">
                         <div>
                             <span class="listing-category">
@@ -2874,6 +2939,13 @@ if (!DOM.pageContainer) {
                     </button>
                 </div>
             `);
+            document
+                .querySelectorAll("[data-preview-index]")
+                .forEach((thumb) => {
+                    thumb.addEventListener("click", () => {
+                        openImageViewer(previewUrls, Number(thumb.dataset.previewIndex));
+                    });
+                });
             document
                 .querySelector(
                     '[data-action="detail-favorite"]'
@@ -4446,38 +4518,24 @@ if (!DOM.pageContainer) {
                             </div>
                         </div>
                     </label>
-                    ${gramEnabled()
-                        ? `<div class="pay-method-wrap">
-                            <span class="pay-method-label">Moyen de paiement</span>
-                            <div class="segmented pay-method" id="sellPayMethod" role="group">
-                                <button type="button" data-pay="XAF" class="${state.sellPayMethod === "GRAM" ? "" : "active"}">JessiKaPay (FCFA)</button>
-                                <button type="button" data-pay="GRAM" class="${state.sellPayMethod === "GRAM" ? "active" : ""}">GRAM</button>
-                            </div>
-                        </div>`
-                        : ""}
-                    <label id="sellGramWrap" ${gramEnabled() && state.sellPayMethod === "GRAM" ? "" : "hidden"}>
-                        Ton adresse GRAM (tu y recevras le paiement)
-                        <input
-                            id="sellGramAddress"
-                            type="text"
-                            autocomplete="off"
-                            autocapitalize="off"
-                            spellcheck="false"
-                            placeholder="UQ… ou EQ… (copiée depuis ton portefeuille Telegram)"
-                        >
-                        <small>Recopie-la depuis l'app « Argent » de Telegram : une seule lettre fausse, et le paiement est perdu.</small>
-                    </label>
-                    <label>
-                        <span id="sellPriceLabel">${state.sellPayMethod === "GRAM" && gramEnabled() ? "Prix de vente (GRAM)" : "Prix de vente"}</span>
-                        <input
-                            id="sellPrice"
-                            type="number"
-                            min="${state.sellPayMethod === "GRAM" && gramEnabled() ? "1" : "1"}"
-                            step="${state.sellPayMethod === "GRAM" && gramEnabled() ? "0.01" : "1"}"
-                            placeholder="${state.sellPayMethod === "GRAM" && gramEnabled() ? "Ex : 25" : "Ex : 50000"}"
-                            required
-                        >
-                    </label>
+                    <div class="pay-method-wrap" id="sellPayChooser">
+                        <span class="pay-method-label">Moyen de paiement</span>
+                        <div class="pay-choice" role="group">
+                            <button type="button" data-pay="XAF">
+                                <strong>JessiKaPay</strong>
+                                <small>Paiement en FCFA</small>
+                            </button>
+                            <button type="button" data-pay="GRAM">
+                                <strong>GRAM</strong>
+                                <small>Paiement en crypto</small>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="pay-chosen" id="sellPayChosen" hidden>
+                        <span id="sellPayChosenLabel"></span>
+                        <button type="button" id="sellPayChange">Changer</button>
+                    </div>
+                    <div id="sellPayFields"></div>
                     <label>
                         Description
                         <textarea
@@ -4487,6 +4545,32 @@ if (!DOM.pageContainer) {
                             placeholder="Présente ton canal aux acheteurs..."
                         ></textarea>
                     </label>
+                    <div class="proofs-block" id="sellPreviewBlock" hidden>
+                        <span class="proofs-title">
+                            Aperçu du canal <em>obligatoire</em>
+                        </span>
+                        <p class="proofs-help">
+                            Ton canal est privé : les acheteurs ne peuvent pas
+                            l'ouvrir. Ajoute 1 à 6 photos (captures de tes
+                            publications, médias, statistiques) : ils les verront
+                            en cliquant sur ton annonce.
+                        </p>
+                        <div class="proofs-grid" id="sellPreviewGrid"></div>
+                        <input
+                            type="file"
+                            id="sellPreviewInput"
+                            accept="image/*"
+                            multiple
+                            hidden
+                        >
+                        <button
+                            type="button"
+                            class="secondary-action full-width"
+                            id="sellPreviewAdd"
+                        >
+                            + Ajouter des photos d'aperçu
+                        </button>
+                    </div>
                     <div class="proofs-block">
                         <span class="proofs-title">
                             Photos de preuve <em>obligatoire</em>
@@ -4554,10 +4638,11 @@ if (!DOM.pageContainer) {
         `;
         setupCategoryPicker();
         bindDetectedChannels();
+        bindSellPayMethod();
         applySellDraft();
         bindChannelType();
         bindProofs();
-        bindSellPayMethod();
+        bindPreviews();
         /* Affichés une seule fois : une visite ultérieure repart propre. */
         state.sellError = "";
         state.sellDraft = null;
@@ -4571,37 +4656,135 @@ if (!DOM.pageContainer) {
             );
         bindMyListingActions();
     }
-    /* Choix du moyen de paiement de l'annonce : JessiKaPay (FCFA) ou GRAM. */
-    function applySellPayMethod() {
-        const gram = gramEnabled() && state.sellPayMethod === "GRAM";
-        const wrap = document.getElementById("sellGramWrap");
-        const price = document.getElementById("sellPrice");
-        const label = document.getElementById("sellPriceLabel");
-        if (wrap) wrap.hidden = !gram;
-        if (label) label.textContent = gram ? "Prix de vente (GRAM)" : "Prix de vente";
-        if (price) {
-            price.step = gram ? "0.01" : "1";
-            price.placeholder = gram ? "Ex : 25" : "Ex : 50000";
+    /* Moyen de paiement de l'annonce : JessiKaPay (FCFA) OU GRAM.
+       Une fois choisi, SEUL ce moyen reste à l'écran : aucune trace de l'autre. */
+    function renderSellPayFields() {
+        const method = gramEnabled() && state.sellPayMethod === "GRAM"
+            ? "GRAM"
+            : state.sellPayMethod === "XAF" ? "XAF" : null;
+        const chooser = document.getElementById("sellPayChooser");
+        const chosen = document.getElementById("sellPayChosen");
+        const fields = document.getElementById("sellPayFields");
+        if (!fields) {
+            return;
+        }
+        if (chooser) chooser.hidden = Boolean(method);
+        if (chosen) chosen.hidden = !method;
+        const label = document.getElementById("sellPayChosenLabel");
+        if (label) {
+            label.textContent = method === "GRAM"
+                ? "Paiement : GRAM"
+                : "Paiement : JessiKaPay (FCFA)";
         }
         document
-            .querySelectorAll("#sellPayMethod button")
+            .querySelectorAll("#sellPayChooser [data-pay=GRAM]")
             .forEach((button) => {
-                const on = button.dataset.pay === (gram ? "GRAM" : "XAF");
-                button.classList.toggle("active", on);
-                button.setAttribute("aria-pressed", String(on));
+                button.disabled = !gramEnabled();
+                const small = button.querySelector("small");
+                if (small) small.textContent = gramEnabled() ? "Paiement en crypto" : "Bientôt disponible";
             });
+
+        const previousPrice = document.getElementById("sellPrice")?.value || "";
+        const previousAddress = document.getElementById("sellGramAddress")?.value || "";
+
+        if (!method) {
+            fields.innerHTML = "";
+            return;
+        }
+
+        fields.innerHTML = method === "GRAM"
+            ? `<label>
+                    Ton adresse GRAM (tu y recevras le paiement)
+                    <input id="sellGramAddress" type="text" autocomplete="off" autocapitalize="off"
+                        spellcheck="false" placeholder="UQ… ou EQ… (copiée depuis ton portefeuille Telegram)">
+                    <small class="gram-warning">Recopie-la depuis l'app « Argent » de Telegram : une seule lettre fausse, et le paiement est perdu.</small>
+                </label>
+                <label>
+                    Prix de vente (GRAM)
+                    <input id="sellPrice" type="number" min="1" step="0.01" placeholder="Ex : 25" required>
+                </label>`
+            : `<label>
+                    Prix de vente
+                    <input id="sellPrice" type="number" min="1" step="1" placeholder="Ex : 50000" required>
+                </label>`;
+
+        const price = document.getElementById("sellPrice");
+        if (price && previousPrice) price.value = previousPrice;
+        const address = document.getElementById("sellGramAddress");
+        if (address && previousAddress) address.value = previousAddress;
     }
 
     function bindSellPayMethod() {
         document
-            .querySelectorAll("#sellPayMethod button")
+            .querySelectorAll("#sellPayChooser [data-pay]")
             .forEach((button) => {
                 button.addEventListener("click", () => {
+                    if (button.dataset.pay === "GRAM" && !gramEnabled()) {
+                        showToast("Paiement GRAM", "Le paiement en GRAM n'est pas encore activé.");
+                        return;
+                    }
                     state.sellPayMethod = button.dataset.pay === "GRAM" ? "GRAM" : "XAF";
-                    applySellPayMethod();
+                    renderSellPayFields();
                 });
             });
-        applySellPayMethod();
+        document.getElementById("sellPayChange")?.addEventListener("click", () => {
+            state.sellPayMethod = null;
+            renderSellPayFields();
+        });
+        renderSellPayFields();
+    }
+
+    /* Aperçu du canal (canaux PRIVÉS) : photos que les acheteurs verront. */
+    const MAX_PREVIEWS = 6;
+
+    function renderPreviewGrid() {
+        const grid = document.getElementById("sellPreviewGrid");
+        const addButton = document.getElementById("sellPreviewAdd");
+        if (!grid) {
+            return;
+        }
+        grid.innerHTML = state.sellPreviews
+            .map((data, index) => `
+                <div class="proof-thumb">
+                    <img src="${data}" alt="Aperçu ${index + 1}">
+                    <button type="button" class="proof-remove" data-preview-remove="${index}" aria-label="Retirer la photo">×</button>
+                </div>`)
+            .join("");
+        grid.querySelectorAll("[data-preview-remove]").forEach((button) => {
+            button.addEventListener("click", () => {
+                state.sellPreviews.splice(Number(button.dataset.previewRemove), 1);
+                renderPreviewGrid();
+            });
+        });
+        if (addButton) {
+            addButton.disabled = state.sellPreviews.length >= MAX_PREVIEWS;
+            addButton.textContent = state.sellPreviews.length >= MAX_PREVIEWS
+                ? `${MAX_PREVIEWS} photos maximum`
+                : state.sellPreviews.length
+                ? `+ Ajouter une photo (${state.sellPreviews.length}/${MAX_PREVIEWS})`
+                : "+ Ajouter des photos d'aperçu";
+        }
+    }
+
+    function bindPreviews() {
+        const input = document.getElementById("sellPreviewInput");
+        renderPreviewGrid();
+        document.getElementById("sellPreviewAdd")?.addEventListener("click", () => input?.click());
+        input?.addEventListener("change", async () => {
+            const files = Array.from(input.files || []);
+            input.value = "";
+            for (const file of files) {
+                if (state.sellPreviews.length >= MAX_PREVIEWS) {
+                    break;
+                }
+                try {
+                    state.sellPreviews.push(await compressImage(file));
+                    renderPreviewGrid();
+                } catch (error) {
+                    showToast("Photo ignorée", error.message);
+                }
+            }
+        });
     }
 
     /* =====================================================
@@ -5019,6 +5202,11 @@ if (!DOM.pageContainer) {
             input.inputMode = isPrivate ? "numeric" : "text";
         }
 
+        const previewBlock = document.getElementById("sellPreviewBlock");
+        if (previewBlock) {
+            previewBlock.hidden = !isPrivate;
+        }
+
         if (hint) {
             hint.textContent = isPrivate
                 ? "Ajoute le bot NexMarket comme administrateur : ton canal apparaît dans « Canaux détectés » (touche-le). Sinon colle ici l'ID du canal. Les acheteurs n'auront pas de lien public."
@@ -5087,6 +5275,13 @@ if (!DOM.pageContainer) {
             "";
         const isPrivate = state.sellChannelType === "private";
         const detectedId = usernameInput?.dataset.channelId || "";
+        if (!state.sellPayMethod) {
+            showToast(
+                "Moyen de paiement",
+                "Choisis comment tu veux être payé : JessiKaPay ou GRAM."
+            );
+            return;
+        }
         const payInGram = gramEnabled() && state.sellPayMethod === "GRAM";
         const gramAddress = (
             document.getElementById("sellGramAddress")?.value || ""
@@ -5122,6 +5317,14 @@ if (!DOM.pageContainer) {
             showToast(
                 "ID invalide",
                 "L'ID d'un canal ressemble à -1001234567890. Le plus simple : touche ton canal dans « Canaux détectés »."
+            );
+            return;
+        }
+
+        if (isPrivate && !state.sellPreviews.length) {
+            showToast(
+                "Aperçu requis",
+                "Canal privé : ajoute au moins une photo d'aperçu que les acheteurs pourront voir."
             );
             return;
         }
@@ -5211,11 +5414,15 @@ if (!DOM.pageContainer) {
                                 ...(payInGram
                                     ? { currency: "GRAM", gram_address: gramAddress }
                                     : {}),
-                                proof_images: state.sellProofs
+                                proof_images: state.sellProofs,
+                                ...(isPrivate
+                                    ? { preview_images: state.sellPreviews }
+                                    : {})
                             })
                     }
                 );
             state.sellProofs = [];
+            state.sellPreviews = [];
             state.sellDraft = null;
             state.sellError = "";
             closeModal();
@@ -6133,7 +6340,8 @@ if (!DOM.pageContainer) {
         buyer: "Acheteur",
         seller: "Vendeur",
         admin: "Admin NexMarket",
-        system: "NexMarket"
+        system: "NexMarket",
+        assistant: "Assistant IA NexMarket"
     };
     function renderMessage(
         message
@@ -6159,6 +6367,7 @@ if (!DOM.pageContainer) {
             `;
         }
         const own =
+            message.sender_role !== "assistant" &&
             Number(
                 message.sender_id
             ) ===

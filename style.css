@@ -3170,3 +3170,54 @@ a.secondary-action.channel-visit{
 .gram-wait { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 10px; font-size: 12px; color: #c4a8ff; }
 .gram-spin { width: 16px; height: 16px; border-radius: 50%; border: 2px solid rgba(167,139,250,.3); border-top-color: #a78bfa; animation: gramspin 1s linear infinite; }
 @keyframes gramspin { to { transform: rotate(360deg); } }
+
+.pay-method.segmented > button.soon { opacity: .55; }
+
+/* Assistant IA dans la discussion (v21) */
+.message-bubble.role-assistant {
+    background: linear-gradient(160deg, rgba(56,169,240,.18), rgba(124,58,237,.16)) !important;
+    border: 1px solid rgba(124,180,255,.35) !important;
+}
+
+/* ============================================================
+   Choix du paiement (vente) + aperçu des canaux privés (v21)
+============================================================ */
+.pay-choice { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.pay-choice > button {
+    display: flex; flex-direction: column; gap: 3px; align-items: flex-start; text-align: left;
+    padding: 14px; border-radius: 16px; border: 1px solid rgba(255,255,255,.12);
+    background: rgba(255,255,255,.05); color: #f4f4f7; font-family: inherit; cursor: pointer;
+}
+.pay-choice > button strong { font-size: 14px; font-weight: 800; }
+.pay-choice > button small { font-size: 10.5px; color: #a3a3b8; }
+.pay-choice > button:active { border-color: #a78bfa; background: rgba(124,58,237,.18); }
+.pay-choice > button:disabled { opacity: .5; cursor: not-allowed; }
+.pay-chosen {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 2px 0 12px;
+    padding: 10px 14px; border-radius: 14px; background: rgba(124,58,237,.16); border: 1px solid rgba(167,139,250,.35);
+    font-size: 12.5px; font-weight: 700; color: #e0d4ff;
+}
+.pay-chosen[hidden], .pay-method-wrap[hidden] { display: none; }
+.pay-chosen > button {
+    border: none; background: none; color: #c4a8ff; font-family: inherit; font-size: 12px; font-weight: 700;
+    text-decoration: underline; cursor: pointer;
+}
+.gram-warning { display: block; margin-top: 6px; font-size: 10.5px; line-height: 1.4; color: #f0b429; }
+.preview-gallery { margin: 14px 0 4px; }
+.preview-title { display: block; margin-bottom: 8px; font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: #a78bfa; }
+.preview-strip { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; scroll-snap-type: x proximity; }
+.preview-thumb {
+    flex: 0 0 auto; width: 96px; height: 96px; padding: 0; border-radius: 14px; overflow: hidden;
+    border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.05); cursor: pointer; scroll-snap-align: start;
+}
+.preview-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.image-viewer {
+    position: fixed; inset: 0; z-index: 99999; display: flex; align-items: center; justify-content: center;
+    background: rgba(0,0,0,.92);
+}
+.image-viewer .iv-img { max-width: 94vw; max-height: 82vh; object-fit: contain; border-radius: 12px; }
+.image-viewer button { position: absolute; border: none; color: #fff; font-family: inherit; cursor: pointer; background: rgba(255,255,255,.14); }
+.image-viewer .iv-close { top: 16px; right: 16px; width: 42px; height: 42px; border-radius: 50%; font-size: 26px; line-height: 1; }
+.image-viewer .iv-nav { top: 50%; width: 42px; height: 54px; margin-top: -27px; border-radius: 14px; font-size: 30px; }
+.image-viewer .iv-prev { left: 8px; } .image-viewer .iv-next { right: 8px; }
+.image-viewer .iv-count { position: absolute; bottom: 22px; left: 0; right: 0; text-align: center; font-size: 12px; color: #d4d4e4; }

@@ -446,9 +446,29 @@
 "L'administrateur envoie le paiement au vendeur (moins la commission de 5 %).": "The administrator is sending the payment to the seller (minus the 5% commission).",
 "JessiKaPay (FCFA)": "JessiKaPay (FCFA)",
 "GRAM": "GRAM",
+"Argent normal (FCFA)": "Regular money (FCFA)",
+"GRAM (bientôt)": "GRAM (coming soon)",
+"Paiement GRAM": "GRAM payment",
+"Le paiement en GRAM n'est pas encore activé.": "GRAM payment is not activated yet.",
+"JessiKaPay": "JessiKaPay",
+"Paiement en FCFA": "Payment in FCFA",
+"Paiement en crypto": "Crypto payment",
+"Bientôt disponible": "Coming soon",
+"Paiement : GRAM": "Payment: GRAM",
+"Paiement : JessiKaPay (FCFA)": "Payment: JessiKaPay (FCFA)",
+"Changer": "Change",
+"Aperçu du canal": "Channel preview",
+"Ton canal est privé : les acheteurs ne peuvent pas l'ouvrir. Ajoute 1 à 6 photos (captures de tes publications, médias, statistiques) : ils les verront en cliquant sur ton annonce.": "Your channel is private: buyers cannot open it. Add 1 to 6 photos (screenshots of your posts, media, statistics): they will see them when they tap your listing.",
+"+ Ajouter des photos d'aperçu": "+ Add preview photos",
+"Aperçu requis": "Preview required",
+"Canal privé : ajoute au moins une photo d'aperçu que les acheteurs pourront voir.": "Private channel: add at least one preview photo that buyers can see.",
+"Choisis comment tu veux être payé : JessiKaPay ou GRAM.": "Choose how you want to be paid: JessiKaPay or GRAM.",
+"6 photos maximum": "6 photos maximum",
+"Assistant IA NexMarket": "NexMarket AI Assistant",
+"Assistant IA": "AI Assistant",
 "Bonjour à vous": "Hello there"
 };
-    var PATTERNS = [["^Bonjour (.+)$", "Hello $1"], ["^(.+) est dans le presse-papiers\\.$", "$1 is in the clipboard."], ["^Le retrait minimum est de (.+) XAF\\.$", "The minimum withdrawal is $1 XAF."], ["^Retrait minimum : (.+) XAF\\.$", "Minimum withdrawal: $1 XAF."], ["^Active « (.+) » pour NexMarket dans les administrateurs du canal, puis actualise la liste\\.$", "Enable “$1” for NexMarket in the channel administrators, then refresh the list."], ["^Le serveur répond avec le code (\\d+)\\.$", "The server responded with code $1."], ["^Le serveur est indisponible \\(HTTP (\\d+)\\)\\.$", "The server is unavailable (HTTP $1)."], ["^Vérification du dépôt: (.+)$", "Deposit check: $1"], ["^(\\d+) annonces$", "$1 listings"], ["^· 1 vente$", "· 1 sale"], ["^· (\\d+) ventes$", "· $1 sales"], ["^(.+) abonnés$", "$1 subscribers"], ["^(.+) abonnés · (.+)$", "$1 subscribers · $2"], ["^Frais JessiKaPay \\((.+)\\)$", "JessiKaPay fee ($1)"], ["^Envoie (.+) GRAM$", "Send $1 GRAM"], ["^ajoute exactement ce commentaire, sinon ton paiement ne pourra pas être reconnu\\. Envoie au moins (.+) GRAM\\.$", "add exactly this comment, otherwise your payment cannot be recognized. Send at least $1 GRAM."]].map(function (p) { return [new RegExp(p[0]), p[1]]; });
+    var PATTERNS = [["^Bonjour (.+)$", "Hello $1"], ["^(.+) est dans le presse-papiers\\.$", "$1 is in the clipboard."], ["^Le retrait minimum est de (.+) XAF\\.$", "The minimum withdrawal is $1 XAF."], ["^Retrait minimum : (.+) XAF\\.$", "Minimum withdrawal: $1 XAF."], ["^Active « (.+) » pour NexMarket dans les administrateurs du canal, puis actualise la liste\\.$", "Enable “$1” for NexMarket in the channel administrators, then refresh the list."], ["^Le serveur répond avec le code (\\d+)\\.$", "The server responded with code $1."], ["^Le serveur est indisponible \\(HTTP (\\d+)\\)\\.$", "The server is unavailable (HTTP $1)."], ["^Vérification du dépôt: (.+)$", "Deposit check: $1"], ["^(\\d+) annonces$", "$1 listings"], ["^· 1 vente$", "· 1 sale"], ["^· (\\d+) ventes$", "· $1 sales"], ["^(.+) abonnés$", "$1 subscribers"], ["^(.+) abonnés · (.+)$", "$1 subscribers · $2"], ["^Frais JessiKaPay \\((.+)\\)$", "JessiKaPay fee ($1)"], ["^Envoie (.+) GRAM$", "Send $1 GRAM"], ["^ajoute exactement ce commentaire, sinon ton paiement ne pourra pas être reconnu\\. Envoie au moins (.+) GRAM\\.$", "add exactly this comment, otherwise your payment cannot be recognized. Send at least $1 GRAM."], ["^\\+ Ajouter une photo \\((\\d+)/(\\d+)\\)$", "+ Add a photo ($1/$2)"]].map(function (p) { return [new RegExp(p[0]), p[1]]; });
     var lang = "fr";
     var records = new WeakMap();      // nœud texte -> {src, out}
     var attrRecords = new WeakMap();  // élément -> {attr: {src, out}}
