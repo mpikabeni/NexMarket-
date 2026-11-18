@@ -528,7 +528,7 @@
   }
 
   /* ================= DISCUSSION D'UNE TRANSACTION ================= */
-  const ROLE_LABELS = { buyer: "Acheteur", seller: "Vendeur", admin: "Admin", system: "NexMarket" };
+  const ROLE_LABELS = { buyer: "Acheteur", seller: "Vendeur", admin: "Admin", system: "NexMarket", assistant: "Assistant IA" };
 
   function chatBubble(m) {
     if (m.is_system_message || m.sender_role === "system") {
