@@ -4416,6 +4416,7 @@ if (!DOM.pageContainer) {
                         <p>
                             Ajoute le bot NexMarket comme administrateur
                             de ton canal pour le vérifier.
+                            Minimum 1 000 abonnés pour mettre un canal en vente.
                         </p>
                     </div>
                 </div>
