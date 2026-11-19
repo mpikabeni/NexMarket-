@@ -2971,6 +2971,7 @@ body.category-picker-open {
   display:flex;flex-direction:column;gap:9px;padding:14px;margin:4px 0 14px;
   border-radius:18px;background:var(--surface-2);border:1px dashed var(--border-active)
 }
+.proofs-block[hidden]{display:none}
 .proofs-title{font-size:13px;font-weight:800}
 .proofs-title em{
   margin-left:6px;padding:2px 8px;border-radius:999px;font-style:normal;

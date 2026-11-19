@@ -5100,6 +5100,7 @@ if (!DOM.pageContainer) {
         const previewBlock = document.getElementById("sellPreviewBlock");
         if (previewBlock) {
             previewBlock.hidden = !isPrivate;
+            previewBlock.style.display = isPrivate ? "" : "none";
         }
 
         if (hint) {
@@ -5303,10 +5304,7 @@ if (!DOM.pageContainer) {
                                     ? { currency: "GRAM", gram_address: gramAddress }
                                     : {}),
                                 ...(isPrivate
-                                    ? {
-                                          preview_images: state.sellPreviews,
-                                          proof_images: state.sellPreviews
-                                      }
+                                    ? { preview_images: state.sellPreviews }
                                     : {})
                             })
                     }
