@@ -456,10 +456,10 @@
       </div>
       <h3 class="modal-title" style="font-size:14px">Photos de preuve</h3>
       <div class="proofs" id="proofsBox">
-        ${proofs.length ? "" : `<div class="proof-empty">Le vendeur n'a fourni aucune photo de preuve.</div>`}
+        ${proofs.length ? "" : `<div class="proof-empty">Aucune photo fournie pour cette annonce.</div>`}
       </div>
       <div class="modal-actions">
-        <button class="btn ok" id="approveListing" type="button">${proofs.length ? "Approuver" : "Approuver sans preuve"}</button>
+        <button class="btn ok" id="approveListing" type="button">${"Approuver"}</button>
         <button class="btn danger" id="rejectListing" type="button">Refuser</button>
       </div>
     `);
@@ -480,8 +480,7 @@
 
     $("#approveListing").addEventListener("click", (event) =>
       run(event.currentTarget, async () => {
-        if (!proofs.length && !confirm("Aucune photo de preuve. Approuver quand même ?")) return;
-        await api(`/admin/listings/${id}/approve${proofs.length ? "" : "?without_proofs=true"}`, { method: "POST" });
+        await api(`/admin/listings/${id}/approve`, { method: "POST" });
         closeModal();
         toast("Annonce approuvée et publiée.");
         await loadListings();
