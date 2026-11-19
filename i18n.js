@@ -9,6 +9,11 @@
     var STORE_KEY = "nexmarket_lang";
     var EN = {
 "+ Ajouter des photos": "+ Add photos",
+"Entre le @username ou le lien de ton canal public.": "Enter the @username or link of your public channel.",
+"Touche ton canal dans « Canaux détectés » ou colle son ID.": "Tap your channel in “Detected channels” or paste its ID.",
+"Ajoute le bot NexMarket comme administrateur de ton canal pour le vérifier.": "Add the NexMarket bot as an administrator of your channel to verify it.",
+"Photos du canal": "Channel photos",
+"Canal privé : ajoute 1 à 6 captures de ton canal que les acheteurs verront sur ton annonce.": "Private channel: add 1 to 6 screenshots of your channel that buyers will see on your listing.",
 ", indispensable pour retirer.": ", required to withdraw.",
 ": il te donne ton ID": ": it gives you your ID",
 "ACTIVITÉ": "ACTIVITY",

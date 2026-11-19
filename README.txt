@@ -11,8 +11,8 @@ Structure
 
 Dépôt : choisir le pays d'origine (JessiKaPay l'exige) puis saisir son numéro
 Mobile Money SANS l'indicatif.
-Vente : canal public (@username) ou privé (ID du canal), 1 à 4 photos de preuve
-obligatoires (envoyées à l'administrateur).
+Vente : canal public (@username, aucune photo demandée) ou privé (ID du canal,
+1 à 6 photos obligatoires, visibles par les acheteurs et envoyées à l'administrateur).
 
 v18 — Paramètres : langue et devise d'affichage
 - Langue Français / English (fichier i18n.js, à garder à côté de app.js).

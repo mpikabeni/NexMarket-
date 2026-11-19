@@ -49,7 +49,6 @@
         selectedCategory: "all",
         sort: "recent",
         sellDraft: null,
-        sellProofs: [],
         sellPreviews: [],
         sellChannelType: "public",
         sellError: "",
@@ -4414,13 +4413,9 @@ if (!DOM.pageContainer) {
                 <div class="sell-notice">
                     ${ICONS.lock}
                     <div>
-                        <strong>
-                            Vérification obligatoire
-                        </strong>
                         <p>
-                            Le bot NexMarket doit pouvoir
-                            vérifier le canal avant que
-                            ton annonce soit publiée.
+                            Ajoute le bot NexMarket comme administrateur
+                            de ton canal pour le vérifier.
                         </p>
                     </div>
                 </div>
@@ -4455,8 +4450,7 @@ if (!DOM.pageContainer) {
                             required
                         >
                         <small id="sellChannelHint">
-                            Le canal doit être accessible
-                            et tu dois en être administrateur.
+                            Entre le @username ou le lien de ton canal public.
                         </small>
                     </label>
                     <label>
@@ -4547,13 +4541,11 @@ if (!DOM.pageContainer) {
                     </label>
                     <div class="proofs-block" id="sellPreviewBlock" hidden>
                         <span class="proofs-title">
-                            Aperçu du canal <em>obligatoire</em>
+                            Photos du canal <em>obligatoire</em>
                         </span>
                         <p class="proofs-help">
-                            Ton canal est privé : les acheteurs ne peuvent pas
-                            l'ouvrir. Ajoute 1 à 6 photos (captures de tes
-                            publications, médias, statistiques) : ils les verront
-                            en cliquant sur ton annonce.
+                            Canal privé : ajoute 1 à 6 captures de ton canal
+                            que les acheteurs verront sur ton annonce.
                         </p>
                         <div class="proofs-grid" id="sellPreviewGrid"></div>
                         <input
@@ -4569,32 +4561,6 @@ if (!DOM.pageContainer) {
                             id="sellPreviewAdd"
                         >
                             + Ajouter des photos d'aperçu
-                        </button>
-                    </div>
-                    <div class="proofs-block">
-                        <span class="proofs-title">
-                            Photos de preuve <em>obligatoire</em>
-                        </span>
-                        <p class="proofs-help">
-                            Ajoute 1 à 4 captures : statistiques du canal
-                            (abonnés, vues) et preuve que tu en es le
-                            propriétaire. Elles sont envoyées à
-                            l'administrateur pour validation.
-                        </p>
-                        <div class="proofs-grid" id="sellProofsGrid"></div>
-                        <input
-                            type="file"
-                            id="sellProofsInput"
-                            accept="image/*"
-                            multiple
-                            hidden
-                        >
-                        <button
-                            type="button"
-                            class="secondary-action full-width"
-                            id="sellProofsAdd"
-                        >
-                            + Ajouter des photos
                         </button>
                     </div>
                     <button
@@ -4641,7 +4607,6 @@ if (!DOM.pageContainer) {
         bindSellPayMethod();
         applySellDraft();
         bindChannelType();
-        bindProofs();
         bindPreviews();
         /* Affichés une seule fois : une visite ultérieure repart propre. */
         state.sellError = "";
@@ -5060,7 +5025,6 @@ if (!DOM.pageContainer) {
     /* =====================================================
        VENTE : canal public / privé + photos de preuve
     ===================================================== */
-    const MAX_PROOFS = 4;
 
     function compressImage(file, maxSide = 1280, maxBytes = 700000) {
         return new Promise((resolve, reject) => {
@@ -5109,75 +5073,6 @@ if (!DOM.pageContainer) {
         });
     }
 
-    function renderProofsGrid() {
-        const grid = document.getElementById("sellProofsGrid");
-        const addButton = document.getElementById("sellProofsAdd");
-
-        if (!grid) {
-            return;
-        }
-
-        grid.innerHTML = state.sellProofs
-            .map(
-                (data, index) => `
-                    <div class="proof-thumb">
-                        <img src="${data}" alt="Preuve ${index + 1}">
-                        <button
-                            type="button"
-                            class="proof-remove"
-                            data-proof-remove="${index}"
-                            aria-label="Retirer la photo"
-                        >×</button>
-                    </div>
-                `
-            )
-            .join("");
-
-        grid.querySelectorAll("[data-proof-remove]").forEach((button) => {
-            button.addEventListener("click", () => {
-                state.sellProofs.splice(Number(button.dataset.proofRemove), 1);
-                renderProofsGrid();
-            });
-        });
-
-        if (addButton) {
-            addButton.disabled = state.sellProofs.length >= MAX_PROOFS;
-            addButton.textContent =
-                state.sellProofs.length >= MAX_PROOFS
-                    ? `${MAX_PROOFS} photos maximum`
-                    : state.sellProofs.length
-                    ? `+ Ajouter une photo (${state.sellProofs.length}/${MAX_PROOFS})`
-                    : "+ Ajouter des photos";
-        }
-    }
-
-    function bindProofs() {
-        const input = document.getElementById("sellProofsInput");
-        const addButton = document.getElementById("sellProofsAdd");
-
-        renderProofsGrid();
-
-        addButton?.addEventListener("click", () => input?.click());
-
-        input?.addEventListener("change", async () => {
-            const files = Array.from(input.files || []);
-            input.value = "";
-
-            for (const file of files) {
-                if (state.sellProofs.length >= MAX_PROOFS) {
-                    break;
-                }
-
-                try {
-                    state.sellProofs.push(await compressImage(file));
-                    renderProofsGrid();
-                } catch (error) {
-                    showToast("Photo ignorée", error.message);
-                }
-            }
-        });
-    }
-
     function applyChannelType() {
         const isPrivate = state.sellChannelType === "private";
         const input = document.getElementById("sellUsername");
@@ -5209,8 +5104,8 @@ if (!DOM.pageContainer) {
 
         if (hint) {
             hint.textContent = isPrivate
-                ? "Ajoute le bot NexMarket comme administrateur : ton canal apparaît dans « Canaux détectés » (touche-le). Sinon colle ici l'ID du canal. Les acheteurs n'auront pas de lien public."
-                : "Le canal doit être public (avec un @username) et tu dois en être administrateur. Les visiteurs pourront ouvrir ton canal depuis l'annonce.";
+                ? "Touche ton canal dans « Canaux détectés » ou colle son ID."
+                : "Entre le @username ou le lien de ton canal public.";
         }
     }
 
@@ -5329,13 +5224,6 @@ if (!DOM.pageContainer) {
             return;
         }
 
-        if (!state.sellProofs.length) {
-            showToast(
-                "Photo de preuve requise",
-                "Ajoute au moins une capture des statistiques de ton canal."
-            );
-            return;
-        }
         if (!category) {
             showToast(
                 "Catégorie requise",
@@ -5414,14 +5302,15 @@ if (!DOM.pageContainer) {
                                 ...(payInGram
                                     ? { currency: "GRAM", gram_address: gramAddress }
                                     : {}),
-                                proof_images: state.sellProofs,
                                 ...(isPrivate
-                                    ? { preview_images: state.sellPreviews }
+                                    ? {
+                                          preview_images: state.sellPreviews,
+                                          proof_images: state.sellPreviews
+                                      }
                                     : {})
                             })
                     }
                 );
-            state.sellProofs = [];
             state.sellPreviews = [];
             state.sellDraft = null;
             state.sellError = "";
