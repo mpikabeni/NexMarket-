@@ -3204,6 +3204,16 @@ a.secondary-action.channel-visit{
     border: none; background: none; color: #c4a8ff; font-family: inherit; font-size: 12px; font-weight: 700;
     text-decoration: underline; cursor: pointer;
 }
+.gram-quote-card { margin: 4px 0 14px; padding: 12px 14px; border-radius: 16px; background: rgba(124,58,237,.14); border: 1px solid rgba(167,139,250,.35); }
+.gram-quote-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; font-size: 12px; font-weight: 700; color: #c9c9dc; }
+.gram-quote-top strong { font-size: 15px; font-weight: 800; color: #f4f4f7; }
+.gram-quote-sub { display: flex; justify-content: space-between; gap: 10px; margin-top: 6px; font-size: 11px; color: #a3a3b8; }
+.gram-quote-sub b { font-variant-numeric: tabular-nums; color: #e0d4ff; }
+.gram-quote-bar { margin-top: 8px; height: 4px; border-radius: 4px; background: rgba(255,255,255,.1); overflow: hidden; }
+.gram-quote-bar i { display: block; height: 100%; width: 100%; border-radius: 4px; background: #a78bfa; transition: width 1s linear; }
+.gram-quote-card.soon .gram-quote-bar i { background: #f0b429; }
+.gram-quote-card.soon .gram-quote-sub b { color: #f0b429; }
+.gram-quote-card.expired { opacity: .7; }
 .gram-quote { display: block; margin-top: 6px; font-size: 11px; line-height: 1.4; color: var(--muted, #9aa4b2); }
 .gram-warning { display: block; margin-top: 6px; font-size: 10.5px; line-height: 1.4; color: #f0b429; }
 .preview-gallery { margin: 14px 0 4px; }

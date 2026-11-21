@@ -59,7 +59,9 @@
         selectedSubscribers: "all",
         selectedPrice: "all",
         rates: null,
-        sellPayMethod: null
+        sellPayMethod: null,
+        gramQuoteExpiresAt: 0,
+        gramQuoteRefreshing: false
     };
     /* =====================================================
        DOM
@@ -516,6 +518,12 @@
             if (data?.rates) {
                 const gramChanged = Boolean(state.rates?.gram_enabled) !== Boolean(data.gram_enabled);
                 state.rates = data;
+                if (data.gram?.xaf_per_gram) {
+                    const left = Number(data.gram.next_refresh_in);
+                    const total = Number(data.gram.refresh_seconds) || 600;
+                    state.gramQuoteExpiresAt =
+                        Date.now() + (Number.isFinite(left) ? left : total) * 1000;
+                }
                 try {
                     localStorage.setItem(
                         RATES_CACHE_KEY,
@@ -4647,7 +4655,18 @@ if (!DOM.pageContainer) {
         const previousAddress = document.getElementById("sellGramAddress")?.value || "";
 
         fields.innerHTML = method === "GRAM"
-            ? `<label>
+            ? `<div class="gram-quote-card" id="gramQuoteCard">
+                    <div class="gram-quote-top">
+                        <span>Prix actuel du GRAM</span>
+                        <strong id="gramQuoteRate">—</strong>
+                    </div>
+                    <div class="gram-quote-sub">
+                        <span id="gramQuoteUsd"></span>
+                        <span>Expire dans <b id="gramQuoteTimer">--:--</b></span>
+                    </div>
+                    <div class="gram-quote-bar"><i id="gramQuoteBar"></i></div>
+                </div>
+                <label>
                     Ton adresse GRAM (tu y recevras le paiement)
                     <input id="sellGramAddress" type="text" autocomplete="off" autocapitalize="off"
                         spellcheck="false" placeholder="UQ… ou EQ… (copiée depuis ton portefeuille Telegram)">
@@ -4670,6 +4689,11 @@ if (!DOM.pageContainer) {
         if (method === "GRAM" && price) {
             price.addEventListener("input", updateGramQuote);
             updateGramQuote();
+            /* Cours absent ou périmé : on en demande un frais au serveur. */
+            if (!state.gramQuoteExpiresAt || state.gramQuoteExpiresAt <= Date.now()) {
+                refreshGramQuote();
+            }
+            tickGramQuote();
         }
     }
 
@@ -4683,21 +4707,89 @@ if (!DOM.pageContainer) {
         return rate ? Math.max(0.01, Math.round((Number(xaf) / rate) * 100) / 100) : null;
     }
     function updateGramQuote() {
+        const rate = gramXafRate();
+        const rateEl = document.getElementById("gramQuoteRate");
+        if (rateEl) {
+            rateEl.textContent = rate
+                ? `1 GRAM = ${formatNumber(Math.round(rate))} FCFA`
+                : "Indisponible";
+        }
+        const usdEl = document.getElementById("gramQuoteUsd");
+        const usd = Number(state.rates?.gram?.usd);
+        if (usdEl) {
+            usdEl.textContent = usd > 0 ? `≈ ${usd.toFixed(2)} USD` : "";
+        }
         const note = document.getElementById("sellGramQuote");
         if (!note) {
             return;
         }
-        const rate = gramXafRate();
         if (!rate) {
             note.textContent = "Cours du GRAM indisponible pour le moment.";
             return;
         }
         const xaf = Number(document.getElementById("sellPrice")?.value);
         const gram = xaf > 0 ? gramFromXaf(xaf) : null;
-        note.textContent =
-            (gram ? `≈ ${formatNumber(gram)} GRAM · ` : "") +
-            `1 GRAM = ${formatNumber(Math.round(rate))} FCFA · mis à jour toutes les 10 min`;
+        note.textContent = gram
+            ? `≈ ${formatNumber(gram)} GRAM au cours actuel`
+            : "Le prix en GRAM suit le cours du marché.";
     }
+
+    /* Compte à rebours du cours (10 min) : à 0, un nouveau cours est demandé. */
+    function gramQuoteSecondsLeft() {
+        return Math.max(0, Math.ceil((state.gramQuoteExpiresAt - Date.now()) / 1000));
+    }
+    function tickGramQuote() {
+        const timer = document.getElementById("gramQuoteTimer");
+        if (!timer) {
+            return;
+        }
+        const total = Number(state.rates?.gram?.refresh_seconds) || 600;
+        const left = gramQuoteSecondsLeft();
+        const bar = document.getElementById("gramQuoteBar");
+        const card = document.getElementById("gramQuoteCard");
+        if (state.gramQuoteRefreshing || !state.gramQuoteExpiresAt) {
+            timer.textContent = "actualisation…";
+            if (bar) bar.style.width = "0%";
+            card?.classList.add("expired");
+            return;
+        }
+        card?.classList.toggle("expired", left === 0);
+        card?.classList.toggle("soon", left > 0 && left <= 60);
+        timer.textContent =
+            `${String(Math.floor(left / 60)).padStart(2, "0")}:${String(left % 60).padStart(2, "0")}`;
+        if (bar) bar.style.width = `${Math.min(100, (left / total) * 100)}%`;
+        if (left === 0) {
+            refreshGramQuote();
+        }
+    }
+    async function refreshGramQuote() {
+        if (state.gramQuoteRefreshing) {
+            return;
+        }
+        state.gramQuoteRefreshing = true;
+        tickGramQuote();
+        const previous = state.rates?.gram?.updated_at;
+        try {
+            /* Le serveur peut mettre quelques secondes à relire le marché. */
+            for (let attempt = 0; attempt < 4; attempt += 1) {
+                const ok = await loadRates();
+                const fresh = state.rates?.gram?.updated_at;
+                if (ok && fresh && fresh !== previous) {
+                    break;
+                }
+                await new Promise((resolve) => setTimeout(resolve, 3000));
+            }
+        } finally {
+            state.gramQuoteRefreshing = false;
+            /* Si le serveur n'a rien de plus récent, on réessaie dans 30 s. */
+            if (!state.gramQuoteExpiresAt || state.gramQuoteExpiresAt <= Date.now()) {
+                state.gramQuoteExpiresAt = Date.now() + 30000;
+            }
+            updateGramQuote();
+            tickGramQuote();
+        }
+    }
+    setInterval(tickGramQuote, 1000);
 
     function bindSellPayMethod() {
         document
@@ -5212,6 +5304,13 @@ if (!DOM.pageContainer) {
 
         if (payInGram && !(price > 0)) {
             showToast("Prix invalide", "Entre le prix de ton canal en FCFA.");
+            return;
+        }
+        if (payInGram && state.gramQuoteRefreshing) {
+            showToast(
+                "Cours du GRAM",
+                "Le prix du GRAM est en cours d'actualisation, réessaie dans un instant."
+            );
             return;
         }
         if (payInGram && !gramXafRate()) {
