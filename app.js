@@ -4516,19 +4516,15 @@ if (!DOM.pageContainer) {
                     <div class="pay-method-wrap" id="sellPayChooser">
                         <span class="pay-method-label">Moyen de paiement</span>
                         <div class="pay-choice" role="group">
-                            <button type="button" data-pay="XAF">
+                            <button type="button" data-pay="XAF" class="active" aria-pressed="true">
                                 <strong>JessiKaPay</strong>
                                 <small>Paiement en FCFA</small>
                             </button>
-                            <button type="button" data-pay="GRAM">
+                            <button type="button" data-pay="GRAM" aria-pressed="false">
                                 <strong>GRAM</strong>
                                 <small>Paiement en crypto</small>
                             </button>
                         </div>
-                    </div>
-                    <div class="pay-chosen" id="sellPayChosen" hidden>
-                        <span id="sellPayChosenLabel"></span>
-                        <button type="button" id="sellPayChange">Changer</button>
                     </div>
                     <div id="sellPayFields"></div>
                     <label>
@@ -4625,38 +4621,30 @@ if (!DOM.pageContainer) {
     /* Moyen de paiement de l'annonce : JessiKaPay (FCFA) OU GRAM.
        Une fois choisi, SEUL ce moyen reste à l'écran : aucune trace de l'autre. */
     function renderSellPayFields() {
+        /* Un seul moyen de paiement actif à la fois (JessiKaPay par défaut). */
         const method = gramEnabled() && state.sellPayMethod === "GRAM"
             ? "GRAM"
-            : state.sellPayMethod === "XAF" ? "XAF" : null;
-        const chooser = document.getElementById("sellPayChooser");
-        const chosen = document.getElementById("sellPayChosen");
+            : "XAF";
+        state.sellPayMethod = method;
         const fields = document.getElementById("sellPayFields");
         if (!fields) {
             return;
         }
-        if (chooser) chooser.hidden = Boolean(method);
-        if (chosen) chosen.hidden = !method;
-        const label = document.getElementById("sellPayChosenLabel");
-        if (label) {
-            label.textContent = method === "GRAM"
-                ? "Paiement : GRAM"
-                : "Paiement : JessiKaPay (FCFA)";
-        }
         document
-            .querySelectorAll("#sellPayChooser [data-pay=GRAM]")
+            .querySelectorAll("#sellPayChooser [data-pay]")
             .forEach((button) => {
-                button.disabled = !gramEnabled();
-                const small = button.querySelector("small");
-                if (small) small.textContent = gramEnabled() ? "Paiement en crypto" : "Bientôt disponible";
+                const active = button.dataset.pay === method;
+                button.classList.toggle("active", active);
+                button.setAttribute("aria-pressed", active ? "true" : "false");
+                if (button.dataset.pay === "GRAM") {
+                    button.disabled = !gramEnabled();
+                    const small = button.querySelector("small");
+                    if (small) small.textContent = gramEnabled() ? "Paiement en crypto" : "Bientôt disponible";
+                }
             });
 
         const previousPrice = document.getElementById("sellPrice")?.value || "";
         const previousAddress = document.getElementById("sellGramAddress")?.value || "";
-
-        if (!method) {
-            fields.innerHTML = "";
-            return;
-        }
 
         fields.innerHTML = method === "GRAM"
             ? `<label>
@@ -4666,8 +4654,9 @@ if (!DOM.pageContainer) {
                     <small class="gram-warning">Recopie-la depuis l'app « Argent » de Telegram : une seule lettre fausse, et le paiement est perdu.</small>
                 </label>
                 <label>
-                    Prix de vente (GRAM)
-                    <input id="sellPrice" type="number" min="1" step="0.01" placeholder="Ex : 25" required>
+                    Prix de vente (FCFA)
+                    <input id="sellPrice" type="number" min="1" step="1" placeholder="Ex : 50000" required>
+                    <small id="sellGramQuote" class="gram-quote"></small>
                 </label>`
             : `<label>
                     Prix de vente
@@ -4678,6 +4667,36 @@ if (!DOM.pageContainer) {
         if (price && previousPrice) price.value = previousPrice;
         const address = document.getElementById("sellGramAddress");
         if (address && previousAddress) address.value = previousAddress;
+        if (method === "GRAM" && price) {
+            price.addEventListener("input", updateGramQuote);
+            updateGramQuote();
+        }
+    }
+
+    /* Cours du GRAM : FCFA pour 1 GRAM, relu sur le marché toutes les 10 min. */
+    function gramXafRate() {
+        const rate = Number(state.rates?.gram?.xaf_per_gram);
+        return rate > 0 ? rate : null;
+    }
+    function gramFromXaf(xaf) {
+        const rate = gramXafRate();
+        return rate ? Math.max(0.01, Math.round((Number(xaf) / rate) * 100) / 100) : null;
+    }
+    function updateGramQuote() {
+        const note = document.getElementById("sellGramQuote");
+        if (!note) {
+            return;
+        }
+        const rate = gramXafRate();
+        if (!rate) {
+            note.textContent = "Cours du GRAM indisponible pour le moment.";
+            return;
+        }
+        const xaf = Number(document.getElementById("sellPrice")?.value);
+        const gram = xaf > 0 ? gramFromXaf(xaf) : null;
+        note.textContent =
+            (gram ? `≈ ${formatNumber(gram)} GRAM · ` : "") +
+            `1 GRAM = ${formatNumber(Math.round(rate))} FCFA · mis à jour toutes les 10 min`;
     }
 
     function bindSellPayMethod() {
@@ -4689,14 +4708,13 @@ if (!DOM.pageContainer) {
                         showToast("Paiement GRAM", "Le paiement en GRAM n'est pas encore activé.");
                         return;
                     }
+                    if (state.sellPayMethod === button.dataset.pay) {
+                        return;
+                    }
                     state.sellPayMethod = button.dataset.pay === "GRAM" ? "GRAM" : "XAF";
                     renderSellPayFields();
                 });
             });
-        document.getElementById("sellPayChange")?.addEventListener("click", () => {
-            state.sellPayMethod = null;
-            renderSellPayFields();
-        });
         renderSellPayFields();
     }
 
@@ -5192,10 +5210,21 @@ if (!DOM.pageContainer) {
             return;
         }
 
-        if (payInGram && price < 1) {
+        if (payInGram && !(price > 0)) {
+            showToast("Prix invalide", "Entre le prix de ton canal en FCFA.");
+            return;
+        }
+        if (payInGram && !gramXafRate()) {
+            showToast(
+                "Cours du GRAM indisponible",
+                "Réessaie dans un instant."
+            );
+            return;
+        }
+        if (payInGram && gramFromXaf(price) < 1) {
             showToast(
                 "Prix invalide",
-                "Le prix minimum en GRAM est de 1 GRAM."
+                "Le prix minimum est de 1 GRAM : augmente le prix en FCFA."
             );
             return;
         }
@@ -5298,11 +5327,15 @@ if (!DOM.pageContainer) {
                                     Number(
                                         channelId
                                     ),
-                                price,
+                                price: payInGram ? gramFromXaf(price) : price,
                                 category,
                                 description,
                                 ...(payInGram
-                                    ? { currency: "GRAM", gram_address: gramAddress }
+                                    ? {
+                                          currency: "GRAM",
+                                          gram_address: gramAddress,
+                                          price_xaf: price
+                                      }
                                     : {}),
                                 ...(isPrivate
                                     ? { preview_images: state.sellPreviews }
@@ -5472,6 +5505,9 @@ if (!DOM.pageContainer) {
             );
             return;
         }
+        const isGramQuoted =
+            String(listing.currency || "").toUpperCase() === "GRAM" &&
+            listing.price_xaf != null;
         openModal(`
             <div class="modal-header-content">
                 <div>
@@ -5500,18 +5536,21 @@ if (!DOM.pageContainer) {
                     </strong>
                 </div>
                 <label>
-                    Nouveau prix
+                    ${isGramQuoted ? "Nouveau prix (FCFA)" : "Nouveau prix"}
                     <input
                         id="editListingPrice"
                         type="number"
                         min="1"
                         step="1"
                         value="${escapeHTML(
-                            listing.price ||
+                            (isGramQuoted ? listing.price_xaf : listing.price) ||
                             ""
                         )}"
                         required
                     >
+                    ${isGramQuoted
+                        ? `<small class="gram-quote">Payé en GRAM au cours du marché, mis à jour toutes les 10 min.</small>`
+                        : ""}
                 </label>
                 <label>
                     Description
@@ -5590,7 +5629,9 @@ if (!DOM.pageContainer) {
                                 method: "PATCH",
                                 body:
                                     JSON.stringify({
-                                        price,
+                                        ...(isGramQuoted
+                                            ? { price_xaf: price }
+                                            : { price }),
                                         description
                                     })
                             }
@@ -7720,6 +7761,11 @@ async function initApp() {
                 navigateTo(state.currentPage || "home").catch(() => {});
             }
         });
+
+        /* Cours du GRAM : relu toutes les 10 minutes (comme le serveur). */
+        setInterval(() => {
+            loadRates().then(() => updateGramQuote());
+        }, 10 * 60 * 1000);
 
         workDone = true;
         setSplashStatus("Presque prêt…");
