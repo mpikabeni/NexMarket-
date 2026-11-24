@@ -1,0 +1,180 @@
+/* NEXMARKET — thème v2 : ardoise nuit, verre dépoli, accent bleu électrique.
+   Se charge APRÈS style.css : on redéfinit les variables, puis les formes. */
+@import url("https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&display=swap");
+
+:root{
+  --bg:#070910; --bg-soft:#0b0e18; --surface:#0f1320; --surface-2:#151a2b; --surface-3:#1d2438;
+  --text:#f4f6ff; --text-soft:#a6aec8; --text-muted:#6d7692;
+  --purple:#5b7cff; --purple-light:#9fb2ff; --purple-dark:#3453d6; --pink:#22d3ee;
+  --success:#2fe0a8; --warning:#ffbe55; --danger:#ff5d7a;
+  --border:rgba(160,180,255,.10); --border-active:rgba(91,124,255,.55);
+  --radius:26px; --nav-height:84px;
+  --shadow:0 24px 60px rgba(2,4,14,.55);
+  --grad:linear-gradient(135deg,#5b7cff 0%,#22d3ee 100%);
+  --glass:rgba(18,23,40,.62);
+  --ease:cubic-bezier(.22,1,.36,1);
+  --transition:260ms var(--ease);
+}
+body{
+  font-family:Inter,-apple-system,"Segoe UI",Roboto,sans-serif;
+  background:
+    radial-gradient(520px 340px at 85% -5%,rgba(91,124,255,.16),transparent 70%),
+    radial-gradient(420px 300px at -10% 18%,rgba(34,211,238,.07),transparent 70%),
+    var(--bg);
+}
+h1,h2,h3,.section-kicker,.listing-price,.primary-action,.nav-item span,.wallet-balance-panel strong{
+  font-family:Sora,Inter,sans-serif; letter-spacing:-.02em;
+}
+h1{font-weight:800;letter-spacing:-.035em}
+.section-kicker{letter-spacing:.02em;text-transform:none;color:var(--purple-light);font-weight:600}
+
+/* ICÔNES : trait fin et arrondi, dans des pastilles */
+svg{stroke-linecap:round;stroke-linejoin:round}
+.nav-item svg{width:22px;height:22px;stroke-width:1.8}
+
+/* EN-TÊTE en verre */
+.top-header{
+  background:var(--glass);backdrop-filter:blur(18px) saturate(1.4);
+  -webkit-backdrop-filter:blur(18px) saturate(1.4);
+  border-bottom:1px solid var(--border);
+}
+.avatar-wrapper{border-radius:18px!important;box-shadow:0 0 0 2px rgba(91,124,255,.45),0 8px 24px rgba(91,124,255,.25)}
+.telegram-avatar,.avatar-letter{border-radius:16px!important}
+
+/* BARRE DU BAS : pastille flottante en verre — l'élément mémorable */
+.bottom-navigation{
+  left:14px!important;right:14px!important;bottom:calc(12px + env(safe-area-inset-bottom,0px))!important;
+  width:auto!important;border-radius:30px!important;padding:8px!important;
+  background:var(--glass)!important;
+  backdrop-filter:blur(22px) saturate(1.5);-webkit-backdrop-filter:blur(22px) saturate(1.5);
+  border:1px solid rgba(160,180,255,.14)!important;
+  box-shadow:0 18px 50px rgba(2,4,14,.6),inset 0 1px 0 rgba(255,255,255,.06)!important;
+}
+.nav-item{
+  position:relative;border-radius:22px!important;transition:transform var(--transition),color var(--transition),background var(--transition);
+  color:var(--text-muted);
+}
+.nav-item:active{transform:scale(.9)}
+.nav-item.active{
+  color:#fff!important;
+  background:linear-gradient(135deg,rgba(91,124,255,.30),rgba(34,211,238,.16))!important;
+  box-shadow:inset 0 0 0 1px rgba(159,178,255,.28),0 8px 22px rgba(91,124,255,.28);
+}
+.nav-item.active svg{animation:pop .5s var(--ease)}
+@keyframes pop{0%{transform:scale(.7) rotate(-8deg)}60%{transform:scale(1.18)}100%{transform:scale(1)}}
+.page-container{padding-bottom:calc(var(--nav-height) + 36px)!important}
+
+/* BOUTONS */
+.primary-action{
+  background:var(--grad)!important;color:#04101f!important;font-weight:700;
+  border-radius:18px!important;position:relative;overflow:hidden;
+  box-shadow:0 14px 34px rgba(91,124,255,.38),inset 0 1px 0 rgba(255,255,255,.35);
+  transition:transform var(--transition),box-shadow var(--transition);
+}
+.primary-action::after{
+  content:"";position:absolute;inset:0;transform:translateX(-120%) skewX(-20deg);
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.42),transparent);
+}
+.primary-action:hover::after{transform:translateX(120%) skewX(-20deg);transition:transform .8s var(--ease)}
+.primary-action:active{transform:scale(.96);box-shadow:0 6px 18px rgba(91,124,255,.3)}
+.primary-action svg{stroke:#04101f}
+.secondary-action{
+  background:rgba(255,255,255,.04)!important;border:1px solid var(--border)!important;
+  border-radius:18px!important;transition:transform var(--transition),border-color var(--transition);
+}
+.secondary-action:active{transform:scale(.96);border-color:var(--border-active)!important}
+
+/* CARTES : verre + liseré dégradé, formes plus généreuses */
+.channel-listing,.shop-card,.listing-detail,.my-listing,.wallet-balance-panel,.profile-menu,.settings-group{
+  background:linear-gradient(160deg,rgba(255,255,255,.055),rgba(255,255,255,.02))!important;
+  border:1px solid var(--border)!important;border-radius:var(--radius)!important;
+  box-shadow:var(--shadow);
+  transition:transform var(--transition),border-color var(--transition),box-shadow var(--transition);
+}
+.channel-listing:hover,.shop-card:hover{border-color:var(--border-active)!important;transform:translateY(-3px)}
+.channel-listing:active,.shop-card:active{transform:scale(.975)}
+.listing-image,.shop-cover-img,.listing-image-placeholder{border-radius:20px!important}
+.listing-price{font-weight:800;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.listing-category{border-radius:999px!important;background:rgba(91,124,255,.14)!important;color:var(--purple-light)!important;border:1px solid rgba(91,124,255,.25)}
+.listing-view-button{border-radius:14px!important}
+
+/* CHAMPS */
+input,select,textarea,.buy-select{
+  background:rgba(255,255,255,.04)!important;border:1px solid var(--border)!important;
+  border-radius:16px!important;transition:border-color var(--transition),box-shadow var(--transition);
+}
+input:focus,select:focus,textarea:focus{border-color:var(--border-active)!important;box-shadow:0 0 0 4px rgba(91,124,255,.16)}
+
+/* FENÊTRES : feuille qui monte */
+.modal-content{
+  border-radius:32px 32px 0 0!important;background:var(--surface)!important;
+  border:1px solid var(--border);animation:sheet .45s var(--ease);
+}
+@keyframes sheet{from{transform:translateY(40px);opacity:0}to{transform:none;opacity:1}}
+
+/* ÉTAPES */
+.step-dot.active{box-shadow:0 0 0 5px rgba(91,124,255,.22)}
+.stepper-fill{background:var(--grad)!important}
+
+/* UNE SEULE entrée orchestrée à l'ouverture d'une page */
+.page-container>*{animation:rise .6s var(--ease) both}
+.page-container>*:nth-child(2){animation-delay:.06s}
+.page-container>*:nth-child(3){animation-delay:.12s}
+.page-container>*:nth-child(n+4){animation-delay:.18s}
+@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+}
+
+/* ---- Compléments : le reste de la mini-app ---- */
+.profile-header,.hero,.welcome,.page-heading{position:relative}
+.profile-avatar-large{border-radius:30px!important;box-shadow:0 0 0 3px rgba(91,124,255,.5),0 14px 36px rgba(91,124,255,.3)}
+.profile-menu>button,.settings-list>button{border-radius:20px!important;transition:background .25s var(--ease),transform .25s var(--ease)}
+.profile-menu>button:active,.settings-list>button:active{transform:scale(.97)}
+.profile-menu>button>svg:first-child,.settings-list>button>svg:first-child{
+  width:38px;height:38px;padding:9px;border-radius:13px;background:rgba(91,124,255,.14);color:var(--purple-light)}
+.channel-type-btn,.buy-country-row,.proofs-block,.deposit-quote-row{border-radius:20px!important;border:1px solid var(--border)!important;background:rgba(255,255,255,.04)!important}
+.channel-type-btn.active{border-color:var(--border-active)!important;box-shadow:0 0 0 4px rgba(91,124,255,.14)}
+.copy-chip,.text-button{border-radius:999px!important}
+.category-chip,.chip,.filter-chip{border-radius:999px!important;transition:transform .2s var(--ease)}
+.category-chip:active,.chip:active,.filter-chip:active{transform:scale(.93)}
+
+/* ---- Correctif : l'attribut « hidden » doit gagner (photos d'un canal public) ---- */
+[hidden]{display:none!important}
+
+/* ---- SPLASH : logo qui respire dans un anneau en rotation ---- */
+.splash-screen{
+  background:radial-gradient(480px 360px at 50% 30%,rgba(91,124,255,.28),transparent 70%),
+             radial-gradient(360px 300px at 20% 90%,rgba(34,211,238,.12),transparent 70%),var(--bg)!important}
+.splash-logo{position:relative;border-radius:32px!important;background:var(--glass)!important;
+  border:1px solid rgba(160,180,255,.18)!important;box-shadow:0 20px 60px rgba(91,124,255,.35)!important;
+  animation:breathe 3.2s ease-in-out infinite}
+.splash-logo::before{content:"";position:absolute;inset:-9px;border-radius:40px;padding:2px;
+  background:conic-gradient(from 0deg,#5b7cff,transparent 40%,#22d3ee 70%,transparent);
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor;mask-composite:exclude;animation:spin 2.6s linear infinite}
+.splash-content h1{font-family:Sora,Inter,sans-serif;font-weight:800;letter-spacing:-.04em;
+  background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.splash-progress{height:5px!important;border-radius:999px!important;background:rgba(255,255,255,.08)!important;overflow:hidden}
+.splash-progress span{background:var(--grad)!important;border-radius:999px;box-shadow:0 0 14px rgba(91,124,255,.7)}
+.splash-status{color:var(--text-soft)}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+
+/* ---- CRÉATION DE COMPTE ---- */
+.onboard .profile-card{border-radius:28px;padding:22px;text-align:center;border:1px solid var(--border);
+  background:linear-gradient(160deg,rgba(91,124,255,.16),rgba(34,211,238,.05))}
+.onboard .avatar-ring{border-radius:28px!important;box-shadow:0 0 0 3px rgba(91,124,255,.55),0 12px 32px rgba(91,124,255,.35)}
+.country-search{width:100%;margin-bottom:10px;padding:13px 16px}
+.country-grid{max-height:240px;overflow-y:auto;border-radius:22px;padding:4px}
+.country-option{border-radius:18px!important;border:1px solid var(--border)!important;background:rgba(255,255,255,.04)!important;
+  transition:transform .2s var(--ease),border-color .2s,background .2s}
+.country-option:active{transform:scale(.95)}
+.country-option.selected{border-color:var(--border-active)!important;
+  background:linear-gradient(135deg,rgba(91,124,255,.28),rgba(34,211,238,.12))!important;
+  box-shadow:0 0 0 4px rgba(91,124,255,.14);animation:pop .4s var(--ease)}
+.secure-list li{border-radius:18px;padding:12px 14px;background:rgba(255,255,255,.04);border:1px solid var(--border)}
+.secure-list li>span{border-radius:12px!important;background:rgba(47,224,168,.14)!important;color:var(--success)}
+.terms-check i{border-radius:8px!important;transition:background .2s,transform .2s var(--ease)}
+.terms-check input:checked+i{background:var(--grad)!important;transform:scale(1.08)}

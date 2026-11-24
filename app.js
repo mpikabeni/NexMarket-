@@ -49,6 +49,7 @@
         selectedCategory: "all",
         sort: "recent",
         sellDraft: null,
+        sellProofs: [],
         sellPreviews: [],
         sellChannelType: "public",
         sellError: "",
@@ -59,9 +60,7 @@
         selectedSubscribers: "all",
         selectedPrice: "all",
         rates: null,
-        sellPayMethod: null,
-        gramQuoteExpiresAt: 0,
-        gramQuoteRefreshing: false
+        sellPayMethod: null
     };
     /* =====================================================
        DOM
@@ -518,12 +517,6 @@
             if (data?.rates) {
                 const gramChanged = Boolean(state.rates?.gram_enabled) !== Boolean(data.gram_enabled);
                 state.rates = data;
-                if (data.gram?.xaf_per_gram) {
-                    const left = Number(data.gram.next_refresh_in);
-                    const total = Number(data.gram.refresh_seconds) || 600;
-                    state.gramQuoteExpiresAt =
-                        Date.now() + (Number.isFinite(left) ? left : total) * 1000;
-                }
                 try {
                     localStorage.setItem(
                         RATES_CACHE_KEY,
@@ -868,6 +861,7 @@
         DOM.modalBody.innerHTML =
             content;
         clearModalError();
+        DOM.modalContainer.classList.remove("locked");
         DOM.modalContainer.classList.remove(
             "hidden"
         );
@@ -879,6 +873,9 @@
             "hidden";
     }
     function closeModal() {
+        if (DOM.modalContainer?.classList.contains("locked")) {
+            return;
+        }
         stopChatRefresh();
         if (!DOM.modalContainer) {
             return;
@@ -1367,7 +1364,7 @@
             "Fonds bloqués jusqu'à la livraison",
             "Vérification de chaque canal",
             "Support administrateur",
-            "Paiements JessiKaPay sécurisés",
+            "Paiements Mobile Money sécurisés",
             "Litiges arbitrés"
         ];
 
@@ -3096,74 +3093,10 @@ if (!DOM.pageContainer) {
                 openGramPurchase(gramListing);
                 return;
             }
-            const wallet =
-                await loadWallet();
-            const available =
-                Number(
-                    wallet?.available_balance ??
-                    wallet?.balance ??
-                    0
-                );
-            const listing =
-                state.listings.find(
-                    item =>
-                        Number(item.id) ===
-                        Number(listingId)
-                );
-            const price =
-                Number(
-                    listing?.price || 0
-                );
-            if (
-                price > 0 &&
-                available < price
-            ) {
-                openWalletDeposit(
-                    price - available
-                );
-                showToast(
-                    "Solde insuffisant",
-                    "Recharge ton portefeuille avant de continuer."
-                );
-                return;
-            }
-            const confirmed =
-                window.confirm(
-                    "Confirmer l'achat de ce canal ?"
-                );
-            if (!confirmed) {
-                return;
-            }
-            closeModal();
-            showLoading(
-                "Création de la transaction..."
-            );
-            const data =
-                await apiRequest(
-                    "/transactions",
-                    {
-                        method: "POST",
-                        body:
-                            JSON.stringify({
-                                listing_id:
-                                    Number(
-                                        listingId
-                                    )
-                            })
-                    }
-                );
-            const transaction =
-                data?.transaction ||
-                data;
-            showToast(
-                "Transaction créée",
-                "Les fonds sont maintenant réservés. Un administrateur va prendre en charge la transaction."
-            );
-            await loadTransactions();
-            await loadWallet();
-            await openTransaction(
-                transaction.id
-            );
+            /* Annonce en FCFA : paiement direct MoneyFusion, sans dépôt préalable.
+               L'achat se crée tout seul après confirmation, fonds bloqués comme d'habitude. */
+            openPurchasePayment(gramListing);
+            return;
         } catch (error) {
             await renderBuy();
             showToast(
@@ -3180,6 +3113,110 @@ if (!DOM.pageContainer) {
        constate le virement sur la blockchain, puis la transaction
        démarre comme un achat normal (fonds bloqués chez NexMarket).
     ===================================================== */
+    function openPurchasePayment(listing) {
+        const user = state.user || {};
+        const mine = String(user.country || "").toUpperCase();
+        const options = DEPOSIT_COUNTRIES.map((c) =>
+            `<option value="${escapeHTML(c.code)}" ${c.code === mine ? "selected" : ""}>${escapeHTML(c.name)} (${escapeHTML(c.dial)})</option>`
+        ).join("");
+        openModal(`
+            <div class="wallet-modal">
+                <div class="modal-header-content modal-header-spaced">
+                    <div>
+                        <span class="section-kicker">ACHAT SÉCURISÉ</span>
+                        <h2>Payer ce canal</h2>
+                        <p class="modal-subtitle">${escapeHTML(listing.title || "Canal Telegram")} · <b>${formatNumber(Number(listing.price) || 0)} XAF</b></p>
+                    </div>
+                </div>
+                <form id="buyForm" class="modal-form wallet-modal-form">
+                    <div class="modal-field">
+                        <span class="modal-field-label">Pays du paiement</span>
+                        <div id="buyCountryRow" class="buy-country-row">
+                            <b>${escapeHTML((DEPOSIT_COUNTRIES.find((c) => c.code === mine) || {}).name || "Choisis ton pays")}</b>
+                            <button type="button" id="buyCountryChange" class="link-change" style="margin:0">Changer</button>
+                        </div>
+                        <select id="buyCountry" class="buy-select hidden">${options}</select>
+                    </div>
+                    <div class="modal-field">
+                        <label for="buyPhone" class="modal-field-label">Numéro Mobile Money</label>
+                        <input id="buyPhone" type="tel" inputmode="tel" value="${escapeHTML(user.phone || "")}" placeholder="Ton numéro, sans l'indicatif" required>
+                        <small class="modal-field-hint">Tu choisis ton réseau (MTN, Airtel, Orange…) sur la page de paiement. Ton argent reste bloqué en sécurité jusqu'à la livraison du canal.</small>
+                    </div>
+                    <div id="modalError" class="modal-inline-error hidden" role="alert">
+                        <span class="modal-error-dot"></span><div><strong></strong><span></span></div>
+                    </div>
+                    <button type="submit" class="primary-action full-width modal-submit">${STEP_ICONS.check}Payer maintenant</button>
+                </form>
+            </div>`);
+        const buyKnown = DEPOSIT_COUNTRIES.some((c) => c.code === mine);
+        const buySelect = document.getElementById("buyCountry");
+        const buyRow = document.getElementById("buyCountryRow");
+        if (!buyKnown && buySelect && buyRow) {
+            buyRow.classList.add("hidden");
+            buySelect.classList.remove("hidden");
+        }
+        document.getElementById("buyCountryChange")?.addEventListener("click", () => {
+            buyRow?.classList.add("hidden");
+            buySelect?.classList.remove("hidden");
+            buySelect?.focus();
+        });
+        document.getElementById("buyForm")?.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            const button = event.target.querySelector("button[type=submit]");
+            const phone = cleanWithdrawPhone(document.getElementById("buyPhone")?.value);
+            if (!/^\+?\d{6,15}$/.test(phone)) {
+                showModalError("Numéro invalide", "Entre ton numéro Mobile Money, sans l'indicatif.");
+                return;
+            }
+            button.disabled = true;
+            try {
+                const data = await apiRequest("/deposits/purchase", {
+                    method: "POST",
+                    body: JSON.stringify({
+                        listing_id: Number(listing.id),
+                        country: document.getElementById("buyCountry")?.value,
+                        phone
+                    })
+                });
+                closeModal();
+                showToast("Paiement en cours", "Termine le paiement : ton achat sera créé automatiquement.");
+                if (data?.payment_link) {
+                    openPaymentLink(data.payment_link);
+                }
+                watchPurchase(data?.id);
+            } catch (error) {
+                button.disabled = false;
+                showModalError("Paiement impossible", error.message || "Réessaie dans un instant.");
+            }
+        });
+    }
+
+    /* Surveille le paiement (le serveur le fait aussi en tâche de fond). */
+    async function watchPurchase(depositId) {
+        if (!depositId) {
+            return;
+        }
+        for (let i = 0; i < 60; i++) {
+            await new Promise((resolve) => setTimeout(resolve, 4000));
+            try {
+                const result = await apiRequest(`/deposits/${depositId}/check`, { method: "POST" });
+                const status = String(result?.status || "");
+                if (status === "paid") {
+                    await loadTransactions();
+                    await loadWallet();
+                    showToast("Paiement confirmé", "Tes fonds sont bloqués en sécurité. Un administrateur prend ton achat en charge.");
+                    return;
+                }
+                if (["failed", "expired", "cancelled", "amount_mismatch"].includes(status)) {
+                    showToast("Paiement non abouti", "Aucun montant n'a été prélevé pour cet achat.");
+                    return;
+                }
+            } catch (error) {
+                /* on réessaie au prochain tour */
+            }
+        }
+    }
+
     const GRAM_ADDRESS_KEY = "nexmarket_gram_address";
     const GRAM_ADDRESS_PATTERN = /^[A-Za-z0-9_-]{48}$|^-?[01]:[0-9a-fA-F]{64}$/;
 
@@ -3549,10 +3586,10 @@ if (!DOM.pageContainer) {
     /* =====================================================
        DEPOSIT
     ===================================================== */
-    /* Frais JessiKaPay sur un dépôt : 6 % déduits du montant déposé (le
-       wallet reçoit le NET) + 3 % de frais Mobile Money payés en plus.
-       Mêmes arrondis que le serveur ; les taux viennent de /deposits/fees. */
-    const DEPOSIT_FEES = { commission: 0.06, user: 0.03 };
+    /* Frais MoneyFusion sur un dépôt : déduits du montant payé (le wallet reçoit
+       le NET confirmé par MoneyFusion). Ce n'est qu'une ESTIMATION : le taux
+       vient de /deposits/fees, le montant exact est confirmé après le paiement. */
+    const DEPOSIT_FEES = { commission: 0.05, user: 0 };
 
     function depositQuote(amount) {
         const gross = Math.floor(Number(amount) || 0);
@@ -3571,26 +3608,10 @@ if (!DOM.pageContainer) {
         }
         const amount = Number(document.getElementById("depositAmount")?.value);
         if (!Number.isFinite(amount) || amount <= 0) {
-            box.innerHTML = `<p class="deposit-quote-note">Les frais JessiKaPay sont déduits du montant déposé.</p>`;
+            box.innerHTML = `<p class="deposit-quote-note">Les frais éventuels sont affichés sur la page de paiement.</p>`;
             return;
         }
-        const q = depositQuote(amount);
-        const pct = `${Math.round(DEPOSIT_FEES.commission * 1000) / 10} %`;
-        const xaf = (value) => `${formatNumber(value)} XAF`;
-        box.innerHTML = `
-            <div class="deposit-quote-row">
-                <span>Frais JessiKaPay (${pct})</span>
-                <b>− ${xaf(q.commission)}</b>
-            </div>
-            <div class="deposit-quote-row deposit-quote-net">
-                <span>Tu recevras sur ton solde</span>
-                <b>${xaf(q.net)}</b>
-            </div>
-            <div class="deposit-quote-row">
-                <span>Tu paieras environ</span>
-                <b>${xaf(q.total)}</b>
-            </div>
-            <small>(frais Mobile Money inclus)</small>`;
+        box.innerHTML = `<p class="deposit-quote-note">Les frais éventuels sont affichés sur la page de paiement.</p>`;
     }
 
     async function loadDepositFees() {
@@ -3605,6 +3626,313 @@ if (!DOM.pageContainer) {
             /* taux par défaut conservés */
         }
     }
+
+    /* =====================================================
+       PARCOURS EN ÉTAPES
+       - inscription : 3 étapes (profil, pays + numéro, sécurité)
+       - dépôt ET retrait : les mêmes 5 étapes
+         (montant, pays, numéro, résumé, confirmation)
+    ===================================================== */
+    const SI = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+    const STEP_ICONS = {
+        amount: SI('<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01M18 12h.01"/>'),
+        globe: SI('<circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20"/>'),
+        phone: SI('<rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M11 18h2"/>'),
+        receipt: SI('<path d="M5 3h14v18l-3-2-2 2-2-2-2 2-2-2-3 2z"/><path d="M9 8h6M9 12h6"/>'),
+        check: SI('<path class="draw" d="M5 12.5l4.5 4.5L19 7.5"/>'),
+        user: SI('<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>'),
+        shield: SI('<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/>'),
+        back: SI('<path d="M15 6l-6 6 6 6"/>'),
+        next: SI('<path d="M9 6l6 6-6 6"/>')
+    };
+    const FLOW_LABELS = ["Montant", "Pays", "Numéro", "Résumé", "Confirmer"];
+    const FLOW_ICONS = [STEP_ICONS.amount, STEP_ICONS.globe, STEP_ICONS.phone, STEP_ICONS.receipt, STEP_ICONS.check];
+
+    function mountSteps(form, cfg) {
+        if (!form) {
+            return null;
+        }
+        const total = cfg.labels.length;
+        const panes = [...form.querySelectorAll(":scope > [data-step]")];
+        panes.forEach((pane) => pane.classList.add("step-pane"));
+        const head = document.createElement("div");
+        head.className = "stepper";
+        head.style.setProperty("--n", total);
+        head.innerHTML = `<div class="stepper-track"><i class="stepper-fill"></i></div>` +
+            cfg.labels.map((label, i) => `
+                <div class="step-dot" data-dot="${i + 1}">
+                    <span>${cfg.icons[i]}</span><small>${escapeHTML(label)}</small>
+                </div>`).join("");
+        form.prepend(head);
+        const nav = document.createElement("div");
+        nav.className = "step-nav";
+        nav.innerHTML = `
+            <button type="button" class="step-back">${STEP_ICONS.back}Retour</button>
+            <button type="button" class="step-next">Continuer${STEP_ICONS.next}</button>`;
+        form.append(nav);
+        let current = 1;
+        /* Les étapes sautées (ex. « Pays » déjà connu) disparaissent de la barre. */
+        const layoutDots = (n) => {
+            const dots = [...head.querySelectorAll(".step-dot")];
+            const visible = dots.filter((dot) => !cfg.skip?.(Number(dot.dataset.dot)) || Number(dot.dataset.dot) === n);
+            dots.forEach((dot) => {
+                const i = Number(dot.dataset.dot);
+                dot.style.display = visible.includes(dot) ? "" : "none";
+                dot.classList.toggle("active", i === n);
+                dot.classList.toggle("done", i < n);
+            });
+            head.style.setProperty("--n", visible.length);
+            const pos = Math.max(0, visible.findIndex((dot) => Number(dot.dataset.dot) === n));
+            head.querySelector(".stepper-fill").style.width =
+                `${visible.length > 1 ? (pos / (visible.length - 1)) * 100 : 100}%`;
+        };
+        const go = (n) => {
+            const dir = n >= current ? "fwd" : "back";
+            current = n;
+            panes.forEach((pane) => {
+                pane.classList.remove("active", "fwd", "back");
+                if (Number(pane.dataset.step) === n) {
+                    pane.classList.add("active", dir);
+                }
+            });
+            layoutDots(n);
+            nav.querySelector(".step-back").style.visibility = n === 1 ? "hidden" : "visible";
+            nav.querySelector(".step-next").classList.toggle("hidden", n === total);
+            clearModalError();
+            cfg.onEnter?.(n);
+        };
+        const skipped = (n) => Boolean(cfg.skip?.(n));
+        const next = () => {
+            const error = cfg.validate?.(current);
+            if (error) {
+                showModalError(error[0], error[1]);
+                return;
+            }
+            let target = current + 1;
+            while (target < total && skipped(target)) {
+                target += 1;
+            }
+            if (current < total) {
+                go(target);
+            }
+        };
+        nav.querySelector(".step-next").addEventListener("click", next);
+        nav.querySelector(".step-back").addEventListener("click", () => {
+            let target = current - 1;
+            while (target > 1 && skipped(target)) {
+                target -= 1;
+            }
+            if (current > 1) {
+                go(target);
+            }
+        });
+        /* Entrée / soumission avant la dernière étape : on avance seulement. */
+        form.addEventListener("submit", (event) => {
+            if (current < total) {
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                next();
+            }
+        }, true);
+        go(1);
+        const api = { go, next, nav, relayout: () => layoutDots(current) };
+        form._steps = api;
+        return api;
+    }
+
+    /* Pays du compte (saisi à l'inscription) : plus redemandé, modifiable en un clic. */
+    function addChangeCountry(steps, getName, onChange) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "link-change";
+        steps.nav.before(button);
+        const refresh = (n = 1) => {
+            button.hidden = n !== 1 || !getName();
+            button.textContent = `Pays : ${getName()} · Changer`;
+        };
+        button.addEventListener("click", () => {
+            onChange();
+            steps.go(2);
+        });
+        return refresh;
+    }
+
+    function renderSummary(rows) {
+        const box = document.getElementById("stepSummary");
+        if (box) {
+            box.innerHTML = rows.map(([icon, label, value]) => `
+                <div class="summary-row">
+                    <span class="summary-icon">${icon}</span>
+                    <span class="summary-label">${escapeHTML(label)}</span>
+                    <b>${escapeHTML(value)}</b>
+                </div>`).join("");
+        }
+    }
+
+    const stepFinal = (button, text) => `
+        <div class="step-final" data-step="5">
+            <div class="success-orb">${STEP_ICONS.check}</div>
+            <h3>Tout est prêt</h3>
+            <p>${text}</p>
+            ${button}
+        </div>`;
+
+    /* ---------- Inscription : 3 étapes ---------- */
+    async function openOnboarding() {
+        const user = state.user || {};
+        const name = [user.first_name, user.last_name].filter(Boolean).join(" ") || "Nouveau membre";
+        const photo = /^https:\/\//.test(user.photo_url || "") ? user.photo_url : "";
+        const choice = { country: "", dial: "" };
+        openModal(`
+            <div class="wallet-modal onboard">
+                <div class="modal-header-content modal-header-spaced">
+                    <div>
+                        <span class="section-kicker">BIENVENUE</span>
+                        <h2>Crée ton compte</h2>
+                        <p class="modal-subtitle">3 étapes rapides pour sécuriser tes paiements.</p>
+                    </div>
+                </div>
+                <form id="onboardForm" class="modal-form wallet-modal-form" novalidate>
+                    <div class="modal-field" data-step="1">
+                        <div class="profile-card">
+                            <div class="avatar-ring">${photo
+                                ? `<img src="${escapeHTML(photo)}" alt="">`
+                                : `<span>${escapeHTML(name.charAt(0).toUpperCase())}</span>`}</div>
+                            <strong>${escapeHTML(name)}</strong>
+                            <small>${user.username ? "@" + escapeHTML(user.username) : "Compte Telegram relié"}</small>
+                            ${user.nexa_id ? `<em>ID ${escapeHTML(user.nexa_id)}</em>` : ""}
+                        </div>
+                    </div>
+                    <div class="modal-field" data-step="2">
+                        <span class="modal-field-label">Ton pays</span>
+                        <input id="onboardSearch" class="country-search" type="search" placeholder="Rechercher ton pays" autocomplete="off">
+                        <div class="country-grid" id="onboardCountries"><p class="modal-field-hint">Chargement…</p></div>
+                        <label for="onboardPhone" class="modal-field-label">Numéro Mobile Money</label>
+                        <div class="phone-input-wrap">
+                            <span class="phone-prefix" id="onboardDial">+</span>
+                            <input id="onboardPhone" type="tel" inputmode="tel" placeholder="Ton numéro, sans l'indicatif">
+                        </div>
+                    </div>
+                    <div class="modal-field" data-step="3">
+                        <ul class="secure-list">
+                            <li><span>${STEP_ICONS.shield}</span>Ton argent reste bloqué jusqu'à la livraison du canal.</li>
+                            <li><span>${STEP_ICONS.check}</span>Chaque litige est examiné par l'équipe NexMarket.</li>
+                            <li><span>${STEP_ICONS.user}</span>Ne partage jamais tes codes ni tes mots de passe.</li>
+                        </ul>
+                        <label class="terms-check"><input type="checkbox" id="onboardTerms"><i></i>J'accepte les conditions d'utilisation de NexMarket.</label>
+                        <button type="submit" class="primary-action full-width modal-submit">${STEP_ICONS.check}Créer mon compte</button>
+                    </div>
+                    <div id="modalError" class="modal-inline-error hidden" role="alert">
+                        <span class="modal-error-dot"></span><div><strong></strong><span></span></div>
+                    </div>
+                </form>
+            </div>`);
+        DOM.modalContainer?.classList.add("locked");
+        const form = document.getElementById("onboardForm");
+        mountSteps(form, {
+            labels: ["Profil", "Pays & numéro", "Sécurité"],
+            icons: [STEP_ICONS.user, STEP_ICONS.globe, STEP_ICONS.shield],
+            validate: (step) => {
+                if (step !== 2) {
+                    return null;
+                }
+                if (!choice.country) {
+                    return ["Pays", "Choisis ton pays."];
+                }
+                if (!/^\+?\d{6,15}$/.test(cleanWithdrawPhone(document.getElementById("onboardPhone")?.value))) {
+                    return ["Numéro invalide", "Entre ton numéro Mobile Money, sans l'indicatif."];
+                }
+                return null;
+            }
+        });
+        form.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            if (!document.getElementById("onboardTerms")?.checked) {
+                showModalError("Conditions", "Coche la case pour accepter les conditions.");
+                return;
+            }
+            try {
+                const updated = await apiRequest("/users/me/onboarding", {
+                    method: "POST",
+                    body: JSON.stringify({
+                        country: choice.country,
+                        phone: cleanWithdrawPhone(document.getElementById("onboardPhone")?.value),
+                        accept_terms: true
+                    })
+                });
+                state.user = { ...state.user, ...updated };
+                DOM.modalContainer?.classList.remove("locked");
+                closeModal();
+                showToast("Compte créé", "Bienvenue sur NexMarket !");
+            } catch (error) {
+                showModalError("Création impossible", error.message || "Réessaie dans un instant.");
+            }
+        });
+        const list = worldCountries();
+        const grid = document.getElementById("onboardCountries");
+        if (!grid) {
+            return;
+        }
+        grid.innerHTML = list.map((c) => `
+            <button type="button" class="country-option" data-code="${escapeHTML(c.code)}" data-dial="${escapeHTML(c.dial || "")}">
+                <strong>${escapeHTML(c.name)}</strong><small>${escapeHTML(c.dial || "")}</small>
+            </button>`).join("");
+        document.getElementById("onboardSearch")?.addEventListener("input", (event) => {
+            const q = event.target.value.trim().toLowerCase();
+            grid.querySelectorAll(".country-option").forEach((o) => {
+                o.hidden = q && !o.textContent.toLowerCase().includes(q);
+            });
+        });
+        grid.querySelectorAll(".country-option").forEach((button) => {
+            button.addEventListener("click", () => {
+                grid.querySelectorAll(".country-option").forEach((o) => o.classList.remove("selected"));
+                button.classList.add("selected");
+                choice.country = button.dataset.code;
+                choice.dial = button.dataset.dial;
+                document.getElementById("onboardDial").textContent = choice.dial || "+";
+                document.getElementById("onboardPhone")?.focus();
+            });
+        });
+    }
+
+    /* Inscription ouverte à tous les pays, SAUF la Russie (RU) et l'Inde (IN). */
+    const BLOCKED_COUNTRIES = ["RU", "IN"];
+    const WORLD_DIALS = {
+        1: "US CA JM BS BB TT DO PR", 7: "KZ", 20: "EG", 27: "ZA", 30: "GR", 31: "NL", 32: "BE", 33: "FR", 34: "ES",
+        36: "HU", 39: "IT", 40: "RO", 41: "CH", 43: "AT", 44: "GB", 45: "DK", 46: "SE", 47: "NO", 48: "PL", 49: "DE",
+        51: "PE", 52: "MX", 53: "CU", 54: "AR", 55: "BR", 56: "CL", 57: "CO", 58: "VE", 60: "MY", 61: "AU", 62: "ID",
+        63: "PH", 64: "NZ", 65: "SG", 66: "TH", 81: "JP", 82: "KR", 84: "VN", 86: "CN", 90: "TR", 92: "PK", 93: "AF",
+        94: "LK", 95: "MM", 98: "IR", 211: "SS", 212: "MA", 213: "DZ", 216: "TN", 218: "LY", 220: "GM", 221: "SN",
+        222: "MR", 223: "ML", 224: "GN", 225: "CI", 226: "BF", 227: "NE", 228: "TG", 229: "BJ", 230: "MU", 231: "LR",
+        232: "SL", 233: "GH", 234: "NG", 235: "TD", 236: "CF", 237: "CM", 238: "CV", 239: "ST", 240: "GQ", 241: "GA",
+        242: "CG", 243: "CD", 244: "AO", 245: "GW", 248: "SC", 249: "SD", 250: "RW", 251: "ET", 252: "SO", 253: "DJ",
+        254: "KE", 255: "TZ", 256: "UG", 257: "BI", 258: "MZ", 260: "ZM", 261: "MG", 263: "ZW", 264: "NA", 265: "MW",
+        266: "LS", 267: "BW", 268: "SZ", 269: "KM", 291: "ER", 351: "PT", 352: "LU", 353: "IE", 354: "IS", 355: "AL",
+        356: "MT", 357: "CY", 358: "FI", 359: "BG", 370: "LT", 371: "LV", 372: "EE", 373: "MD", 374: "AM", 375: "BY",
+        380: "UA", 381: "RS", 385: "HR", 386: "SI", 387: "BA", 389: "MK", 420: "CZ", 421: "SK", 502: "GT", 503: "SV",
+        504: "HN", 505: "NI", 506: "CR", 507: "PA", 509: "HT", 591: "BO", 592: "GY", 593: "EC", 595: "PY", 597: "SR",
+        598: "UY", 852: "HK", 853: "MO", 855: "KH", 856: "LA", 880: "BD", 886: "TW", 960: "MV", 961: "LB", 962: "JO",
+        963: "SY", 964: "IQ", 965: "KW", 966: "SA", 967: "YE", 968: "OM", 970: "PS", 971: "AE", 972: "IL", 973: "BH",
+        974: "QA", 975: "BT", 976: "MN", 977: "NP", 992: "TJ", 993: "TM", 994: "AZ", 995: "GE", 996: "KG", 998: "UZ"
+    };
+    function worldCountries() {
+        let names = null;
+        try { names = new Intl.DisplayNames(["fr"], { type: "region" }); } catch (e) { /* codes seuls */ }
+        const out = [];
+        Object.entries(WORLD_DIALS).forEach(([dial, codes]) => codes.split(" ").forEach((code) => {
+            if (!BLOCKED_COUNTRIES.includes(code)) {
+                out.push({ code, dial: `+${dial}`, name: (names && names.of(code)) || code });
+            }
+        }));
+        return out.sort((a, b) => a.name.localeCompare(b.name, "fr"));
+    }
+
+    /* Ouvre l'inscription tant que le compte n'est pas créé (serveur à jour seulement). */
+    window.__nexOnboard = () => {
+        if (state.user && "onboarded_at" in state.user && !state.user.onboarded_at) {
+            openOnboarding();
+        }
+    };
 
     function openWalletDeposit(
         suggestedAmount = ""
@@ -3634,7 +3962,7 @@ if (!DOM.pageContainer) {
                     id="depositForm"
                     class="modal-form wallet-modal-form"
                 >
-                    <div class="modal-field">
+                    <div class="modal-field" data-step="1">
                         <label
                             for="depositAmount"
                             class="modal-field-label"
@@ -3662,35 +3990,17 @@ if (!DOM.pageContainer) {
                         </div>
                     </div>
                     <div
-                        class="deposit-quote"
+                        class="deposit-quote" data-step="1"
                         id="depositQuote"
                         aria-live="polite"
                     ></div>
-                    <div class="modal-field">
+                    <div class="modal-field" data-step="2">
                         <span class="modal-field-label">
                             Pays d'origine
                         </span>
-                        <div class="country-grid" id="depositCountryGrid">
-                            ${DEPOSIT_COUNTRIES.map(
-                                (country) => `
-                                    <button
-                                        type="button"
-                                        class="country-option ${
-                                            country.code === getDepositCountry()
-                                                ? "selected"
-                                                : ""
-                                        }"
-                                        data-country="${country.code}"
-                                        data-dial="${country.dial}"
-                                    >
-                                        <strong>${escapeHTML(country.name)}</strong>
-                                        <small>${country.dial}</small>
-                                    </button>
-                                `
-                            ).join("")}
-                        </div>
+                        <div class="country-grid" id="depositCountryGrid"></div>
                     </div>
-                    <div class="modal-field">
+                    <div class="modal-field" data-step="3">
                         <label
                             for="depositPhone"
                             class="modal-field-label"
@@ -3716,7 +4026,8 @@ if (!DOM.pageContainer) {
                             >
                         </div>
                     </div>
-                    <div class="payment-provider wallet-provider">
+                    <div class="step-summary" id="stepSummary" data-step="4"></div>
+                    <div class="payment-provider wallet-provider" data-step="4">
                         <span class="provider-icon">
                             ${ICONS.wallet}
                         </span>
@@ -3725,7 +4036,7 @@ if (!DOM.pageContainer) {
                                 Moyen de paiement
                             </span>
                             <strong>
-                                JessiKaPay
+                                Paiement sécurisé
                             </strong>
                             <small>
                                 Tu seras redirigé vers la
@@ -3747,49 +4058,62 @@ if (!DOM.pageContainer) {
                             <span></span>
                         </div>
                     </div>
-                    <button
-                        type="submit"
-                        class="primary-action full-width modal-submit"
-                    >
-                        ${ICONS.deposit}
-                        Continuer
-                    </button>
+                    ${stepFinal(`<button type="submit" class="primary-action full-width modal-submit">${ICONS.deposit}Confirmer le dépôt</button>`, "Tu vas être redirigé vers la page de paiement sécurisée.")}
                 </form>
             </div>
         `);
+        let refreshDepositChange = null;
+        let changeCountry = false;
+        const mineDeposit = String(state.user?.country || "").toUpperCase();
+        const phoneBox = document.getElementById("depositPhone");
+        if (phoneBox && !phoneBox.value && state.user?.phone) {
+            phoneBox.value = state.user.phone;
+        }
+        const depositSteps = mountSteps(document.getElementById("depositForm"), {
+            labels: FLOW_LABELS,
+            icons: FLOW_ICONS,
+            skip: (n) => n === 2 && !changeCountry && DEPOSIT_COUNTRIES.some((c) => c.code === mineDeposit),
+            validate: (step) => {
+                const amount = Number(document.getElementById("depositAmount")?.value);
+                if (step === 1 && !(Number.isFinite(amount) && amount > 0)) {
+                    return ["Montant invalide", "Entre un montant supérieur à zéro."];
+                }
+                if (step === 2 && !document.querySelector("#depositCountryGrid .country-option.selected")) {
+                    return ["Pays", "Choisis ton pays."];
+                }
+                if (step === 3 && !/^\+?\d{6,15}$/.test(cleanWithdrawPhone(document.getElementById("depositPhone")?.value))) {
+                    return ["Numéro invalide", "Entre ton numéro Mobile Money, sans l'indicatif."];
+                }
+                return null;
+            },
+            onEnter: (step) => {
+                refreshDepositChange?.(step);
+                if (step !== 4) {
+                    return;
+                }
+                const amount = Number(document.getElementById("depositAmount")?.value) || 0;
+                const quote = depositQuote(amount);
+                const picked = document.querySelector("#depositCountryGrid .country-option.selected");
+                renderSummary([
+                    [STEP_ICONS.amount, "Montant", `${formatNumber(amount)} XAF`],
+                    [STEP_ICONS.globe, "Pays", picked?.querySelector("strong")?.textContent || ""],
+                    [STEP_ICONS.phone, "Numéro", `${picked?.dataset.dial || ""} ${cleanWithdrawPhone(document.getElementById("depositPhone")?.value)}`]
+                ]);
+            }
+        });
+        refreshDepositChange = addChangeCountry(
+            depositSteps,
+            () => DEPOSIT_COUNTRIES.find((c) => c.code === getDepositCountry())?.name || "",
+            () => { changeCountry = true; }
+        );
+        refreshDepositChange(1);
         document
             .getElementById("depositAmount")
             ?.addEventListener("input", renderDepositQuote);
         renderDepositQuote();
         loadDepositFees();
-        document
-            .querySelectorAll("#depositCountryGrid .country-option")
-            .forEach((option) => {
-                option.addEventListener("click", () => {
-                    document
-                        .querySelectorAll("#depositCountryGrid .country-option")
-                        .forEach((other) => other.classList.remove("selected"));
-
-                    option.classList.add("selected");
-
-                    const dial = document.getElementById("depositDial");
-
-                    if (dial) {
-                        dial.textContent = option.dataset.dial;
-                    }
-
-                    try {
-                        localStorage.setItem(
-                            "nexmarket_deposit_country",
-                            option.dataset.country
-                        );
-                    } catch (error) {
-                        /* stockage indisponible : sans conséquence */
-                    }
-
-                    document.getElementById("depositPhone")?.focus();
-                });
-            });
+        renderDepositCountryGrid();
+        loadDepositCountries();
 
         document
             .getElementById("depositForm")
@@ -3798,8 +4122,9 @@ if (!DOM.pageContainer) {
                 handleDepositSubmit
             );
     }
-    /* Pays pris en charge par JessiKaPay (JessiKaPay EXIGE le pays). */
-    const DEPOSIT_COUNTRIES = [
+    /* Pays de dépôt : liste de secours (CFA), remplacée par celle de MoneyFusion
+       (/deposits/countries) dès qu'elle est chargée. */
+    let DEPOSIT_COUNTRIES = [
         { code: "CI", name: "Côte d'Ivoire", dial: "+225" },
         { code: "SN", name: "Sénégal", dial: "+221" },
         { code: "TG", name: "Togo", dial: "+228" },
@@ -3808,18 +4133,78 @@ if (!DOM.pageContainer) {
         { code: "ML", name: "Mali", dial: "+223" },
         { code: "CM", name: "Cameroun", dial: "+237" },
         { code: "GA", name: "Gabon", dial: "+241" },
-        { code: "NE", name: "Niger", dial: "+227" },
-        { code: "CG", name: "Congo Brazzaville", dial: "+242" },
-        { code: "CD", name: "Congo RDC", dial: "+243" },
-        { code: "GN", name: "Guinée-Conakry", dial: "+224" },
-        { code: "TD", name: "Tchad", dial: "+235" },
-        { code: "GH", name: "Ghana", dial: "+233" },
-        { code: "KE", name: "Kenya", dial: "+254" },
-        { code: "CF", name: "Centrafrique", dial: "+236" },
-        { code: "GW", name: "Guinée-Bissau", dial: "+245" }
+        { code: "CG", name: "Congo Brazzaville", dial: "+242" }
     ];
 
+    function renderDepositCountryGrid() {
+        const grid = document.getElementById("depositCountryGrid");
+        if (!grid) {
+            return;
+        }
+        const selected = DEPOSIT_COUNTRIES.some(
+            (country) => country.code === getDepositCountry()
+        )
+            ? getDepositCountry()
+            : DEPOSIT_COUNTRIES[0]?.code;
+        grid.innerHTML = DEPOSIT_COUNTRIES.map(
+            (country) => `
+                <button
+                    type="button"
+                    class="country-option ${country.code === selected ? "selected" : ""}"
+                    data-country="${escapeHTML(country.code)}"
+                    data-dial="${escapeHTML(country.dial)}"
+                >
+                    <strong>${escapeHTML(country.name)}</strong>
+                    <small>${escapeHTML(country.dial)}</small>
+                </button>`
+        ).join("");
+        const dial = document.getElementById("depositDial");
+        if (dial) {
+            dial.textContent =
+                DEPOSIT_COUNTRIES.find((country) => country.code === selected)?.dial || "";
+        }
+        grid.querySelectorAll(".country-option").forEach((option) => {
+            option.addEventListener("click", () => {
+                grid
+                    .querySelectorAll(".country-option")
+                    .forEach((other) => other.classList.remove("selected"));
+                option.classList.add("selected");
+                const dialBox = document.getElementById("depositDial");
+                if (dialBox) {
+                    dialBox.textContent = option.dataset.dial;
+                }
+                try {
+                    localStorage.setItem(
+                        "nexmarket_deposit_country",
+                        option.dataset.country
+                    );
+                } catch (error) {
+                    /* stockage indisponible : sans conséquence */
+                }
+                document.getElementById("depositPhone")?.focus();
+            });
+        });
+    }
+
+    async function loadDepositCountries() {
+        try {
+            const data = await apiRequest("/deposits/countries");
+            const list = Array.isArray(data?.countries) ? data.countries : [];
+            if (list.length) {
+                DEPOSIT_COUNTRIES = list;
+                renderDepositCountryGrid();
+                document.getElementById("depositForm")?._steps?.relayout();
+            }
+        } catch (error) {
+            /* liste de secours conservée */
+        }
+    }
+
     function getDepositCountry() {
+        const mine = String(state.user?.country || "").toUpperCase();
+        if (mine && DEPOSIT_COUNTRIES.some((c) => c.code === mine)) {
+            return mine;
+        }
         let saved = "";
 
         try {
@@ -3932,7 +4317,7 @@ if (!DOM.pageContainer) {
             /*
              * On conserve la demande en attente pour pouvoir
              * rafraîchir le wallet lorsque l'utilisateur revient
-             * après le paiement JessiKaPay.
+             * après le paiement MoneyFusion.
              */
             sessionStorage.setItem(
                 "nexmarket_pending_deposit",
@@ -3947,7 +4332,7 @@ if (!DOM.pageContainer) {
                 closeModal();
                 showToast(
                     "Paiement prêt",
-                    "La page JessiKaPay va s'ouvrir. Termine le paiement puis reviens dans NexMarket."
+                    "La page de paiement va s'ouvrir. Termine le paiement puis reviens dans NexMarket."
                 );
                 openPaymentLink(url);
                 return;
@@ -3958,7 +4343,7 @@ if (!DOM.pageContainer) {
              */
             throw new Error(
                 data?.message ||
-                "JessiKaPay n'a fourni aucun lien de paiement."
+                "Aucun lien de paiement n'a été fourni."
             );
         } catch (error) {
             showModalError(
@@ -3978,7 +4363,14 @@ if (!DOM.pageContainer) {
     /* =====================================================
        WITHDRAW
     ===================================================== */
+    /* Pays + réseaux de retrait : viennent de MoneyFusion (/withdrawals/methods).
+       Aucun pays ni réseau n'est écrit en dur : seuls ceux disponibles s'affichent. */
+    const withdrawState = { countries: [], country: "", method: "" };
+
     function openWalletWithdraw() {
+        withdrawState.countries = [];
+        withdrawState.country = "";
+        withdrawState.method = "";
         openModal(`
             <div class="wallet-modal">
                 <div class="modal-header-content modal-header-spaced">
@@ -3994,8 +4386,8 @@ if (!DOM.pageContainer) {
                                 Retirer de l'argent
                             </h2>
                             <p class="modal-subtitle">
-                                Retire ton solde vers ton
-                                compte JessiKaPay.
+                                Retire ton solde vers ton compte
+                                Mobile Money.
                             </p>
                         </div>
                     </div>
@@ -4004,7 +4396,7 @@ if (!DOM.pageContainer) {
                     id="withdrawForm"
                     class="modal-form wallet-modal-form"
                 >
-                    <div class="modal-field">
+                    <div class="modal-field" data-step="1">
                         <label
                             for="withdrawAmount"
                             class="modal-field-label"
@@ -4031,56 +4423,45 @@ if (!DOM.pageContainer) {
                         </div>
                         <small class="modal-field-hint">
                             Retrait minimum : ${MIN_WITHDRAWAL.toLocaleString(uiLocale())} XAF.
-                            Tu es prévenu dans le bot dès que JessiKaPay confirme.
+                            Tu es prévenu dans le bot dès que le retrait est effectué.
                         </small>
                     </div>
-                    <div class="modal-field">
+                    <div class="modal-field" data-step="2">
+                        <span class="modal-field-label">
+                            Pays
+                        </span>
+                        <div class="country-grid" id="withdrawCountryGrid">
+                            <p class="modal-field-hint">Chargement des pays...</p>
+                        </div>
+                    </div>
+                    <div class="modal-field hidden" id="withdrawMethodField" data-step="3">
+                        <span class="modal-field-label">
+                            Réseau Mobile Money
+                        </span>
+                        <div class="country-grid" id="withdrawMethodGrid"></div>
+                    </div>
+                    <div class="modal-field" data-step="3">
                         <label
                             for="withdrawPhone"
                             class="modal-field-label"
                         >
-                            Numéro JessiKaPay
+                            Numéro Mobile Money
                         </label>
-                        <div class="jp-start-hint">
-                            <p>
-                                Pas encore d'ID ? Démarre d'abord le bot
-                                <b>@JessiKaPayBot</b> : il te donne ton ID
-                                <b>JP-…</b>, indispensable pour retirer.
-                            </p>
-                            <button
-                                type="button"
-                                class="jp-start-button"
-                                data-open-jessikapay
-                            >
-                                ▶ Démarrer @JessiKaPayBot
-                            </button>
-                        </div>
-                        <div class="jp-lookup-row">
+                        <div class="phone-input-wrap">
+                            <span class="phone-prefix" id="withdrawDial">+</span>
                             <input
                                 id="withdrawPhone"
-                                class="modal-standard-input"
-                                type="text"
-                                placeholder="JP-222222"
-                                maxlength="9"
-                                inputmode="text"
-                                autocomplete="off"
+                                type="tel"
+                                inputmode="tel"
+                                autocomplete="tel"
+                                placeholder="Ton numéro, sans l'indicatif"
                                 required
                             >
-                            <button
-                                type="button"
-                                id="lookupJpButton"
-                                class="secondary-action jp-lookup-button"
-                            >
-                                Vérifier
-                            </button>
                         </div>
-                        <div
-                            id="jpLookupResult"
-                            class="jp-lookup-result hidden"
-                            aria-live="polite"
-                        ></div>
+                        <small class="modal-field-hint" id="withdrawCurrencyHint"></small>
                     </div>
-                    <div class="payment-provider wallet-provider">
+                    <div class="step-summary" id="stepSummary" data-step="4"></div>
+                    <div class="payment-provider wallet-provider" data-step="4">
                         <span class="provider-icon">
                             ${ICONS.withdraw}
                         </span>
@@ -4089,11 +4470,11 @@ if (!DOM.pageContainer) {
                                 Service de retrait
                             </span>
                             <strong>
-                                JessiKaPay
+                                Paiement sécurisé
                             </strong>
                             <small>
                                 Les fonds seront envoyés vers
-                                le numéro indiqué ci-dessus.
+                                le numéro et le réseau choisis.
                             </small>
                         </div>
                         <span class="provider-status">
@@ -4111,206 +4492,301 @@ if (!DOM.pageContainer) {
                             <span></span>
                         </div>
                     </div>
-                    <button
-                        type="submit"
-                        id="confirmWithdrawalButton"
-                        class="primary-action full-width modal-submit"
-                        disabled
-                    >
-                        ${ICONS.withdraw}
-                        Confirmer le retrait
-                    </button>
+                    ${stepFinal(`<button type="submit" id="confirmWithdrawalButton" class="primary-action full-width modal-submit" disabled>${ICONS.withdraw}Confirmer le retrait</button>`, "Les fonds seront envoyés vers ton compte Mobile Money.")}
                 </form>
             </div>
         `);
+        let refreshWithdrawChange = null;
+        let changeWithdrawCountry = false;
+        const withdrawPhoneBox = document.getElementById("withdrawPhone");
+        if (withdrawPhoneBox && !withdrawPhoneBox.value && state.user?.phone) {
+            withdrawPhoneBox.value = state.user.phone;
+        }
+        const withdrawSteps = mountSteps(document.getElementById("withdrawForm"), {
+            labels: FLOW_LABELS,
+            icons: FLOW_ICONS,
+            skip: (n) => n === 2 && !changeWithdrawCountry && withdrawState.countries.some(
+                (c) => c.code === String(state.user?.country || "").toUpperCase()
+            ) && withdrawState.country === String(state.user?.country || "").toUpperCase(),
+            validate: (step) => {
+                const amount = Number(document.getElementById("withdrawAmount")?.value);
+                if (step === 1) {
+                    if (!(Number.isFinite(amount) && amount >= MIN_WITHDRAWAL)) {
+                        return ["Montant trop faible", `Le retrait minimum est de ${MIN_WITHDRAWAL.toLocaleString(uiLocale())} XAF.`];
+                    }
+                    const available = Number(state.wallet?.available_balance);
+                    if (Number.isFinite(available) && available < amount) {
+                        return ["Solde insuffisant", "Ton solde disponible est inférieur à ce montant."];
+                    }
+                }
+                if (step === 2 && !withdrawState.country) {
+                    return ["Pays", "Choisis ton pays."];
+                }
+                if (step === 3) {
+                    if (!withdrawState.method) {
+                        return ["Réseau", "Choisis ton réseau Mobile Money."];
+                    }
+                    if (!/^\+?\d{6,15}$/.test(cleanWithdrawPhone(document.getElementById("withdrawPhone")?.value))) {
+                        return ["Numéro invalide", "Entre ton numéro Mobile Money, sans l'indicatif."];
+                    }
+                }
+                return null;
+            },
+            onEnter: (step) => {
+                refreshWithdrawChange?.(step);
+                if (step === 5) {
+                    updateWithdrawButton();
+                }
+                if (step !== 4) {
+                    return;
+                }
+                const country = withdrawState.countries.find((c) => c.code === withdrawState.country);
+                const method = country?.methods.find((m) => m.key === withdrawState.method);
+                renderSummary([
+                    [STEP_ICONS.amount, "Montant", `${formatNumber(Number(document.getElementById("withdrawAmount")?.value) || 0)} XAF`],
+                    [STEP_ICONS.globe, "Pays", country?.name || ""],
+                    [STEP_ICONS.receipt, "Réseau", method?.name || ""],
+                    [STEP_ICONS.phone, "Numéro", `${country?.dial || ""} ${cleanWithdrawPhone(document.getElementById("withdrawPhone")?.value)}`]
+                ]);
+            }
+        });
+        refreshWithdrawChange = addChangeCountry(
+            withdrawSteps,
+            () => withdrawState.countries.find((c) => c.code === withdrawState.country)?.name || "",
+            () => { changeWithdrawCountry = true; }
+        );
+        withdrawState.onReady = () => refreshWithdrawChange?.(1);
         document
             .getElementById("withdrawForm")
             ?.addEventListener(
                 "submit",
                 handleWithdrawSubmit
             );
-        document
-            .getElementById("lookupJpButton")
-            ?.addEventListener(
-                "click",
-                lookupJessiKaPayNumber
-            );
-        document
-            .getElementById("withdrawPhone")
-            ?.addEventListener(
-                "input",
-                (event) => {
-                    const confirmButton =
-                        document.getElementById(
-                            "confirmWithdrawalButton"
-                        );
-                    const resultBox =
-                        document.getElementById(
-                            "jpLookupResult"
-                        );
-                    if (confirmButton) {
-                        confirmButton.disabled = true;
-                    }
-                    if (resultBox) {
-                        resultBox.classList.add("hidden");
-                        resultBox.innerHTML = "";
-                    }
-                    const normalized =
-                        normalizeJessiKaPayNumber(
-                            event?.target?.value ||
-                            document.getElementById("withdrawPhone")?.value
-                        );
-                    const currentInput =
-                        document.getElementById("withdrawPhone");
-                    if (currentInput) {
-                        currentInput.value = normalized;
-                    }
-                    clearModalError();
-                }
-            );
+        ["withdrawAmount", "withdrawPhone"].forEach((id) => {
+            document.getElementById(id)?.addEventListener("input", () => {
+                clearModalError();
+                updateWithdrawButton();
+            });
+        });
+        loadWithdrawMethods();
     }
-    function normalizeJessiKaPayNumber(value) {
-        const raw = String(value || "")
-            .toUpperCase()
-            .replace(/[^A-Z0-9]/g, "");
-        let digits = raw.replace(/^JP/, "").replace(/\D/g, "").slice(0, 6);
-        return digits ? `JP-${digits}` : "";
+    async function loadWithdrawMethods() {
+        const grid = document.getElementById("withdrawCountryGrid");
+        if (!grid) {
+            return;
+        }
+        grid.innerHTML = `<p class="modal-field-hint">Chargement des pays...</p>`;
+        try {
+            if (!sessionStorage.getItem("nexmarket_session_token")) {
+                await authenticateTelegram();
+            }
+            const data = await apiRequest("/withdrawals/methods");
+            withdrawState.countries = Array.isArray(data?.countries)
+                ? data.countries
+                : [];
+        } catch (error) {
+            grid.innerHTML = `
+                <p class="modal-field-hint">
+                    Impossible de charger les pays.
+                    <button type="button" class="secondary-action" id="withdrawRetry">
+                        Réessayer
+                    </button>
+                </p>`;
+            document
+                .getElementById("withdrawRetry")
+                ?.addEventListener("click", loadWithdrawMethods);
+            return;
+        }
+        if (!withdrawState.countries.length) {
+            grid.innerHTML = `<p class="modal-field-hint">Aucun pays disponible pour les retraits pour le moment.</p>`;
+            return;
+        }
+        let savedCountry = "";
+        let savedMethod = "";
+        try {
+            savedCountry = localStorage.getItem("nexmarket_withdraw_country") || "";
+            savedMethod = localStorage.getItem("nexmarket_withdraw_method") || "";
+        } catch (error) {
+            /* stockage indisponible : sans conséquence */
+        }
+        renderWithdrawCountries();
+        const mine = String(state.user?.country || "").toUpperCase();
+        const remembered = withdrawState.countries.find(
+            (country) => country.code === (mine || savedCountry)
+        );
+        if (remembered) {
+            selectWithdrawCountry(
+                remembered.code,
+                remembered.code === savedCountry ? savedMethod : ""
+            );
+        }
+        document.getElementById("withdrawForm")?._steps?.relayout();
+        withdrawState.onReady?.();
     }
-    function isValidJessiKaPayNumber(value) {
-        return /^JP-\d{6}$/.test(String(value || "").trim().toUpperCase());
+    function renderWithdrawCountries() {
+        const grid = document.getElementById("withdrawCountryGrid");
+        if (!grid) {
+            return;
+        }
+        grid.innerHTML = withdrawState.countries.map((country) => `
+            <button
+                type="button"
+                class="country-option ${country.code === withdrawState.country ? "selected" : ""}"
+                data-withdraw-country="${escapeHTML(country.code)}"
+            >
+                <strong>${escapeHTML(country.name)}</strong>
+                <small>${escapeHTML(country.dial || country.currency || "")}</small>
+            </button>
+        `).join("");
+        grid.querySelectorAll("[data-withdraw-country]").forEach((button) => {
+            button.addEventListener("click", () => {
+                selectWithdrawCountry(button.dataset.withdrawCountry, "");
+            });
+        });
     }
-    async function lookupJessiKaPayNumber() {
-        const input =
-            document.getElementById(
-                "withdrawPhone"
-            );
-        const button =
-            document.getElementById(
-                "lookupJpButton"
-            );
-        const resultBox =
-            document.getElementById(
-                "jpLookupResult"
-            );
-        const confirmButton =
-            document.getElementById(
-                "confirmWithdrawalButton"
-            );
-        const jpNumber =
-            normalizeJessiKaPayNumber(input?.value);
-        if (input) {
-            input.value = jpNumber;
+    function selectWithdrawCountry(code, preferredMethod) {
+        const country = withdrawState.countries.find((item) => item.code === code);
+        if (!country) {
+            return;
         }
-        if (!isValidJessiKaPayNumber(jpNumber)) {
-            showModalError(
-                "Numéro JessiKaPay invalide",
-                "Utilise exactement le format JP-222222."
-            );
-            return false;
+        withdrawState.country = country.code;
+        withdrawState.method = "";
+        renderWithdrawCountries();
+        const dial = document.getElementById("withdrawDial");
+        if (dial) {
+            dial.textContent = country.dial || "+";
         }
-        if (confirmButton) {
-            confirmButton.disabled = true;
+        const hint = document.getElementById("withdrawCurrencyHint");
+        if (hint) {
+            const cfa = ["XAF", "XOF"].includes(country.currency);
+            hint.textContent = cfa
+                ? ""
+                : `Le montant sera converti en ${country.currency} pour ce pays.`;
         }
-        if (resultBox) {
-            resultBox.classList.remove("hidden");
-            resultBox.innerHTML = `
-                <div class="jp-lookup-loading">
-                    Vérification du numéro...
-                </div>
-            `;
+        const field = document.getElementById("withdrawMethodField");
+        const grid = document.getElementById("withdrawMethodGrid");
+        if (field && grid) {
+            field.classList.remove("hidden");
+            grid.innerHTML = country.methods.map((method) => `
+                <button
+                    type="button"
+                    class="country-option"
+                    data-withdraw-method="${escapeHTML(method.key)}"
+                >
+                    <strong>${escapeHTML(method.name)}</strong>
+                </button>
+            `).join("");
+            grid.querySelectorAll("[data-withdraw-method]").forEach((button) => {
+                button.addEventListener("click", () => {
+                    selectWithdrawMethod(button.dataset.withdrawMethod);
+                });
+            });
         }
-        if (button) {
-            button.disabled = true;
-            button.textContent = "Vérification...";
+        const keys = country.methods.map((method) => method.key);
+        if (preferredMethod && keys.includes(preferredMethod)) {
+            selectWithdrawMethod(preferredMethod);
+        } else if (keys.length === 1) {
+            selectWithdrawMethod(keys[0]);
+        } else {
+            updateWithdrawButton();
         }
         clearModalError();
-        try {
-            const data =
-                await apiRequest(
-                    `/withdrawals/lookup/${encodeURIComponent(jpNumber)}`
+    }
+    function selectWithdrawMethod(key) {
+        withdrawState.method = key;
+        document
+            .querySelectorAll("#withdrawMethodGrid [data-withdraw-method]")
+            .forEach((button) => {
+                button.classList.toggle(
+                    "selected",
+                    button.dataset.withdrawMethod === key
                 );
-            if (!data?.found) {
-                if (resultBox) {
-                    resultBox.innerHTML = `
-                        <div class="jp-lookup-not-found">
-                            <strong>Numéro introuvable</strong>
-                            <span>Ce numéro JessiKaPay n'a pas été trouvé ou n'est pas disponible.</span>
-                        </div>
-                    `;
-                }
-                return false;
-            }
-            const displayName =
-                data.name ||
-                [data.first_name, data.last_name]
-                    .filter(Boolean)
-                    .join(" ") ||
-                "Compte JessiKaPay";
-            const photo =
-                data.photo_url ||
-                "";
-            if (resultBox) {
-                resultBox.innerHTML = `
-                    <div class="jp-lookup-card">
-                        <div class="jp-lookup-avatar">
-                            ${photo
-                                ? `<img src="${escapeHTML(photo)}" alt="" onerror="this.style.display='none';this.nextElementSibling.classList.remove('hidden')">`
-                                : ""}
-                            <span class="${photo ? "hidden" : ""}">
-                                ${escapeHTML((displayName || "J").charAt(0).toUpperCase())}
-                            </span>
-                        </div>
-                        <div class="jp-lookup-copy">
-                            <span>COMPTE VÉRIFIÉ</span>
-                            <strong>${escapeHTML(displayName)}</strong>
-                            <small>${escapeHTML(data.jp_number || jpNumber)}</small>
-                        </div>
-                        <div class="jp-lookup-badge">Vérifié</div>
-                    </div>
-                `;
-            }
-            if (confirmButton) {
-                confirmButton.disabled = false;
-            }
-            return true;
+            });
+        try {
+            localStorage.setItem("nexmarket_withdraw_country", withdrawState.country);
+            localStorage.setItem("nexmarket_withdraw_method", key);
         } catch (error) {
-            if (resultBox) {
-                resultBox.innerHTML = `
-                    <div class="jp-lookup-not-found">
-                        <strong>Vérification impossible</strong>
-                        <span>${escapeHTML(error.message || "Impossible de vérifier ce numéro.")}</span>
-                    </div>
-                `;
-            }
-            return false;
-        } finally {
-            if (button) {
-                button.disabled = false;
-                button.textContent = "Vérifier";
-            }
+            /* stockage indisponible : sans conséquence */
         }
+        updateWithdrawButton();
+        document.getElementById("withdrawPhone")?.focus();
+    }
+    function cleanWithdrawPhone(value) {
+        return String(value || "").replace(/[\s().-]+/g, "").trim();
+    }
+    function updateWithdrawButton() {
+        const button = document.getElementById("confirmWithdrawalButton");
+        if (!button) {
+            return;
+        }
+        const amount = Number(document.getElementById("withdrawAmount")?.value);
+        const phone = cleanWithdrawPhone(document.getElementById("withdrawPhone")?.value);
+        button.disabled = !(
+            Number.isFinite(amount) &&
+            amount >= MIN_WITHDRAWAL &&
+            withdrawState.country &&
+            withdrawState.method &&
+            /^\+?\d{6,15}$/.test(phone)
+        );
+    }
+    function setupJpLookup() {
+        const input = document.getElementById("sellPayoutPhone");
+        const info = document.getElementById("sellJpInfo");
+        if (!input || !info) {
+            return;
+        }
+        let timer = null;
+        input.addEventListener("input", () => {
+            clearTimeout(timer);
+            const value = input.value.trim();
+            if (value.length < 4) {
+                return;
+            }
+            info.textContent = "Vérification…";
+            timer = setTimeout(async () => {
+                try {
+                    const data = await apiRequest(`/listings/jp-lookup/${encodeURIComponent(value)}`);
+                    info.textContent = data?.found
+                        ? `✓ Compte trouvé : ${data.name || "titulaire confirmé"}`
+                        : "✗ Numéro JP introuvable. Vérifie-le dans JessiKaPay.";
+                } catch (error) {
+                    info.textContent = "Vérification impossible pour l'instant.";
+                }
+            }, 500);
+        });
+    }
+
+    async function loadSellPayoutMethods() {
+        const select = document.getElementById("sellPayoutMethod");
+        if (!select) {
+            return;
+        }
+        let countries = [];
+        try {
+            const data = await apiRequest("/withdrawals/methods");
+            countries = Array.isArray(data?.countries) ? data.countries : [];
+        } catch (error) {
+            /* liste vide : l'argent restera dans le wallet */
+        }
+        const mine = String(state.user?.country || "").toUpperCase();
+        const list = countries.filter((c) => !mine || c.code === mine);
+        const shown = list.length ? list : countries;
+        select.innerHTML = `<option value="">Choisis ton réseau</option>` + shown.flatMap((c) =>
+            c.methods.map((m) =>
+                `<option value="${escapeHTML(c.code)}|${escapeHTML(m.key)}">${escapeHTML(shown.length > 1 ? c.name + " · " : "")}${escapeHTML(m.name)}</option>`
+            )
+        ).join("");
     }
     async function handleWithdrawSubmit(
         event
     ) {
         event.preventDefault();
-        const amountInput =
-            document.getElementById(
-                "withdrawAmount"
-            );
-        const phoneInput =
-            document.getElementById(
-                "withdrawPhone"
-            );
-        const amount =
-            Number(
-                amountInput?.value
-            );
-        const jpNumber =
-            normalizeJessiKaPayNumber(phoneInput?.value);
-        if (phoneInput) {
-            phoneInput.value = jpNumber;
-        }
+        const amount = Number(
+            document.getElementById("withdrawAmount")?.value
+        );
+        const phone = cleanWithdrawPhone(
+            document.getElementById("withdrawPhone")?.value
+        );
         if (
             !Number.isFinite(amount) ||
             amount <= 0
@@ -4328,23 +4804,23 @@ if (!DOM.pageContainer) {
             );
             return;
         }
-        if (!isValidJessiKaPayNumber(jpNumber)) {
+        if (!withdrawState.country || !withdrawState.method) {
             showModalError(
-                "Numéro JessiKaPay invalide",
-                "Utilise exactement le format JP-222222."
+                "Pays et réseau",
+                "Choisis ton pays puis ton réseau Mobile Money."
             );
             return;
         }
-        const confirmButton =
-            document.getElementById(
-                "confirmWithdrawalButton"
-            );
-        if (confirmButton?.disabled) {
+        if (!/^\+?\d{6,15}$/.test(phone)) {
             showModalError(
-                "Numéro non vérifié",
-                "Vérifie d'abord le numéro JessiKaPay avant de confirmer le retrait."
+                "Numéro invalide",
+                "Entre ton numéro Mobile Money, sans l'indicatif du pays."
             );
             return;
+        }
+        const confirmButton = document.getElementById("confirmWithdrawalButton");
+        if (confirmButton) {
+            confirmButton.disabled = true;
         }
         try {
             const data =
@@ -4355,11 +4831,9 @@ if (!DOM.pageContainer) {
                         body:
                             JSON.stringify({
                                 amount,
-                                currency:
-                                    state.user?.currency ||
-                                    "XAF",
-                                jp_number:
-                                    jpNumber
+                                country: withdrawState.country,
+                                method: withdrawState.method,
+                                phone
                             })
                     }
                 );
@@ -4377,6 +4851,9 @@ if (!DOM.pageContainer) {
                 await renderWallet();
             }
         } catch (error) {
+            if (confirmButton) {
+                confirmButton.disabled = false;
+            }
             showModalError(
                 "Retrait impossible",
                 error.message ||
@@ -4421,10 +4898,13 @@ if (!DOM.pageContainer) {
                 <div class="sell-notice">
                     ${ICONS.lock}
                     <div>
+                        <strong>
+                            Vérification obligatoire
+                        </strong>
                         <p>
-                            Ajoute le bot NexMarket comme administrateur
-                            de ton canal pour le vérifier.
-                            Minimum 1 000 abonnés pour mettre un canal en vente.
+                            Le bot NexMarket doit pouvoir
+                            vérifier le canal avant que
+                            ton annonce soit publiée.
                         </p>
                     </div>
                 </div>
@@ -4459,7 +4939,8 @@ if (!DOM.pageContainer) {
                             required
                         >
                         <small id="sellChannelHint">
-                            Entre le @username ou le lien de ton canal public.
+                            Le canal doit être accessible
+                            et tu dois en être administrateur.
                         </small>
                     </label>
                     <label>
@@ -4524,15 +5005,19 @@ if (!DOM.pageContainer) {
                     <div class="pay-method-wrap" id="sellPayChooser">
                         <span class="pay-method-label">Moyen de paiement</span>
                         <div class="pay-choice" role="group">
-                            <button type="button" data-pay="XAF" class="active" aria-pressed="true">
-                                <strong>JessiKaPay</strong>
+                            <button type="button" data-pay="XAF">
+                                <strong>Mobile Money</strong>
                                 <small>Paiement en FCFA</small>
                             </button>
-                            <button type="button" data-pay="GRAM" aria-pressed="false">
+                            <button type="button" data-pay="GRAM">
                                 <strong>GRAM</strong>
                                 <small>Paiement en crypto</small>
                             </button>
                         </div>
+                    </div>
+                    <div class="pay-chosen" id="sellPayChosen" hidden>
+                        <span id="sellPayChosenLabel"></span>
+                        <button type="button" id="sellPayChange">Changer</button>
                     </div>
                     <div id="sellPayFields"></div>
                     <label>
@@ -4546,11 +5031,13 @@ if (!DOM.pageContainer) {
                     </label>
                     <div class="proofs-block" id="sellPreviewBlock" hidden>
                         <span class="proofs-title">
-                            Photos du canal <em>obligatoire</em>
+                            Aperçu du canal <em>obligatoire</em>
                         </span>
                         <p class="proofs-help">
-                            Canal privé : ajoute 1 à 6 captures de ton canal
-                            que les acheteurs verront sur ton annonce.
+                            Ton canal est privé : les acheteurs ne peuvent pas
+                            l'ouvrir. Ajoute 1 à 6 photos (captures de tes
+                            publications, médias, statistiques) : ils les verront
+                            en cliquant sur ton annonce.
                         </p>
                         <div class="proofs-grid" id="sellPreviewGrid"></div>
                         <input
@@ -4566,6 +5053,32 @@ if (!DOM.pageContainer) {
                             id="sellPreviewAdd"
                         >
                             + Ajouter des photos d'aperçu
+                        </button>
+                    </div>
+                    <div class="proofs-block" id="sellProofBlock" hidden>
+                        <span class="proofs-title">
+                            Photos de preuve <em>obligatoire</em>
+                        </span>
+                        <p class="proofs-help">
+                            Ajoute 1 à 4 captures : statistiques du canal
+                            (abonnés, vues) et preuve que tu en es le
+                            propriétaire. Elles sont envoyées à
+                            l'administrateur pour validation.
+                        </p>
+                        <div class="proofs-grid" id="sellProofsGrid"></div>
+                        <input
+                            type="file"
+                            id="sellProofsInput"
+                            accept="image/*"
+                            multiple
+                            hidden
+                        >
+                        <button
+                            type="button"
+                            class="secondary-action full-width"
+                            id="sellProofsAdd"
+                        >
+                            + Ajouter des photos
                         </button>
                     </div>
                     <button
@@ -4612,6 +5125,7 @@ if (!DOM.pageContainer) {
         bindSellPayMethod();
         applySellDraft();
         bindChannelType();
+        bindProofs();
         bindPreviews();
         /* Affichés une seule fois : une visite ultérieure repart propre. */
         state.sellError = "";
@@ -4626,170 +5140,72 @@ if (!DOM.pageContainer) {
             );
         bindMyListingActions();
     }
-    /* Moyen de paiement de l'annonce : JessiKaPay (FCFA) OU GRAM.
+    /* Moyen de paiement de l'annonce : Mobile Money (FCFA) OU GRAM.
        Une fois choisi, SEUL ce moyen reste à l'écran : aucune trace de l'autre. */
     function renderSellPayFields() {
-        /* Un seul moyen de paiement actif à la fois (JessiKaPay par défaut). */
         const method = gramEnabled() && state.sellPayMethod === "GRAM"
             ? "GRAM"
-            : "XAF";
-        state.sellPayMethod = method;
+            : state.sellPayMethod === "XAF" ? "XAF" : null;
+        const chooser = document.getElementById("sellPayChooser");
+        const chosen = document.getElementById("sellPayChosen");
         const fields = document.getElementById("sellPayFields");
         if (!fields) {
             return;
         }
+        if (chooser) chooser.hidden = Boolean(method);
+        if (chosen) chosen.hidden = !method;
+        const label = document.getElementById("sellPayChosenLabel");
+        if (label) {
+            label.textContent = method === "GRAM"
+                ? "Paiement : GRAM"
+                : "Paiement : Mobile Money (FCFA)";
+        }
         document
-            .querySelectorAll("#sellPayChooser [data-pay]")
+            .querySelectorAll("#sellPayChooser [data-pay=GRAM]")
             .forEach((button) => {
-                const active = button.dataset.pay === method;
-                button.classList.toggle("active", active);
-                button.setAttribute("aria-pressed", active ? "true" : "false");
-                if (button.dataset.pay === "GRAM") {
-                    button.disabled = !gramEnabled();
-                    const small = button.querySelector("small");
-                    if (small) small.textContent = gramEnabled() ? "Paiement en crypto" : "Bientôt disponible";
-                }
+                button.disabled = !gramEnabled();
+                const small = button.querySelector("small");
+                if (small) small.textContent = gramEnabled() ? "Paiement en crypto" : "Bientôt disponible";
             });
 
         const previousPrice = document.getElementById("sellPrice")?.value || "";
         const previousAddress = document.getElementById("sellGramAddress")?.value || "";
 
+        if (!method) {
+            fields.innerHTML = "";
+            return;
+        }
+
         fields.innerHTML = method === "GRAM"
-            ? `<div class="gram-quote-card" id="gramQuoteCard">
-                    <div class="gram-quote-top">
-                        <span>Prix actuel du GRAM</span>
-                        <strong id="gramQuoteRate">—</strong>
-                    </div>
-                    <div class="gram-quote-sub">
-                        <span id="gramQuoteUsd"></span>
-                        <span>Expire dans <b id="gramQuoteTimer">--:--</b></span>
-                    </div>
-                    <div class="gram-quote-bar"><i id="gramQuoteBar"></i></div>
-                </div>
-                <label>
+            ? `<label>
                     Ton adresse GRAM (tu y recevras le paiement)
                     <input id="sellGramAddress" type="text" autocomplete="off" autocapitalize="off"
                         spellcheck="false" placeholder="UQ… ou EQ… (copiée depuis ton portefeuille Telegram)">
                     <small class="gram-warning">Recopie-la depuis l'app « Argent » de Telegram : une seule lettre fausse, et le paiement est perdu.</small>
                 </label>
                 <label>
-                    Prix de vente (FCFA)
-                    <input id="sellPrice" type="number" min="1" step="1" placeholder="Ex : 50000" required>
-                    <small id="sellGramQuote" class="gram-quote"></small>
+                    Prix de vente (GRAM)
+                    <input id="sellPrice" type="number" min="1" step="0.01" placeholder="Ex : 25" required>
                 </label>`
             : `<label>
                     Prix de vente
                     <input id="sellPrice" type="number" min="1" step="1" placeholder="Ex : 50000" required>
+                </label>
+                <label>
+                    Ton numéro JessiKaPay (JP) : tu y reçois ton argent
+                    <input id="sellPayoutPhone" type="text" autocomplete="off" autocapitalize="characters"
+                        spellcheck="false" placeholder="Ex : JP-123456">
+                    <small id="sellJpInfo" class="gram-note">Tu le trouves dans ton application JessiKaPay. Une fois les fonds libérés par l'admin, l'argent arrive directement sur ce numéro.</small>
                 </label>`;
+        if (method !== "GRAM") {
+            setupJpLookup();
+        }
 
         const price = document.getElementById("sellPrice");
         if (price && previousPrice) price.value = previousPrice;
         const address = document.getElementById("sellGramAddress");
         if (address && previousAddress) address.value = previousAddress;
-        if (method === "GRAM" && price) {
-            price.addEventListener("input", updateGramQuote);
-            updateGramQuote();
-            /* Cours absent ou périmé : on en demande un frais au serveur. */
-            if (!state.gramQuoteExpiresAt || state.gramQuoteExpiresAt <= Date.now()) {
-                refreshGramQuote();
-            }
-            tickGramQuote();
-        }
     }
-
-    /* Cours du GRAM : FCFA pour 1 GRAM, relu sur le marché toutes les 10 min. */
-    function gramXafRate() {
-        const rate = Number(state.rates?.gram?.xaf_per_gram);
-        return rate > 0 ? rate : null;
-    }
-    function gramFromXaf(xaf) {
-        const rate = gramXafRate();
-        return rate ? Math.max(0.01, Math.round((Number(xaf) / rate) * 100) / 100) : null;
-    }
-    function updateGramQuote() {
-        const rate = gramXafRate();
-        const rateEl = document.getElementById("gramQuoteRate");
-        if (rateEl) {
-            rateEl.textContent = rate
-                ? `1 GRAM = ${formatNumber(Math.round(rate))} FCFA`
-                : "Indisponible";
-        }
-        const usdEl = document.getElementById("gramQuoteUsd");
-        const usd = Number(state.rates?.gram?.usd);
-        if (usdEl) {
-            usdEl.textContent = usd > 0 ? `≈ ${usd.toFixed(2)} USD` : "";
-        }
-        const note = document.getElementById("sellGramQuote");
-        if (!note) {
-            return;
-        }
-        if (!rate) {
-            note.textContent = "Cours du GRAM indisponible pour le moment.";
-            return;
-        }
-        const xaf = Number(document.getElementById("sellPrice")?.value);
-        const gram = xaf > 0 ? gramFromXaf(xaf) : null;
-        note.textContent = gram
-            ? `≈ ${formatNumber(gram)} GRAM au cours actuel`
-            : "Le prix en GRAM suit le cours du marché.";
-    }
-
-    /* Compte à rebours du cours (10 min) : à 0, un nouveau cours est demandé. */
-    function gramQuoteSecondsLeft() {
-        return Math.max(0, Math.ceil((state.gramQuoteExpiresAt - Date.now()) / 1000));
-    }
-    function tickGramQuote() {
-        const timer = document.getElementById("gramQuoteTimer");
-        if (!timer) {
-            return;
-        }
-        const total = Number(state.rates?.gram?.refresh_seconds) || 600;
-        const left = gramQuoteSecondsLeft();
-        const bar = document.getElementById("gramQuoteBar");
-        const card = document.getElementById("gramQuoteCard");
-        if (state.gramQuoteRefreshing || !state.gramQuoteExpiresAt) {
-            timer.textContent = "actualisation…";
-            if (bar) bar.style.width = "0%";
-            card?.classList.add("expired");
-            return;
-        }
-        card?.classList.toggle("expired", left === 0);
-        card?.classList.toggle("soon", left > 0 && left <= 60);
-        timer.textContent =
-            `${String(Math.floor(left / 60)).padStart(2, "0")}:${String(left % 60).padStart(2, "0")}`;
-        if (bar) bar.style.width = `${Math.min(100, (left / total) * 100)}%`;
-        if (left === 0) {
-            refreshGramQuote();
-        }
-    }
-    async function refreshGramQuote() {
-        if (state.gramQuoteRefreshing) {
-            return;
-        }
-        state.gramQuoteRefreshing = true;
-        tickGramQuote();
-        const previous = state.rates?.gram?.updated_at;
-        try {
-            /* Le serveur peut mettre quelques secondes à relire le marché. */
-            for (let attempt = 0; attempt < 4; attempt += 1) {
-                const ok = await loadRates();
-                const fresh = state.rates?.gram?.updated_at;
-                if (ok && fresh && fresh !== previous) {
-                    break;
-                }
-                await new Promise((resolve) => setTimeout(resolve, 3000));
-            }
-        } finally {
-            state.gramQuoteRefreshing = false;
-            /* Si le serveur n'a rien de plus récent, on réessaie dans 30 s. */
-            if (!state.gramQuoteExpiresAt || state.gramQuoteExpiresAt <= Date.now()) {
-                state.gramQuoteExpiresAt = Date.now() + 30000;
-            }
-            updateGramQuote();
-            tickGramQuote();
-        }
-    }
-    setInterval(tickGramQuote, 1000);
 
     function bindSellPayMethod() {
         document
@@ -4800,13 +5216,14 @@ if (!DOM.pageContainer) {
                         showToast("Paiement GRAM", "Le paiement en GRAM n'est pas encore activé.");
                         return;
                     }
-                    if (state.sellPayMethod === button.dataset.pay) {
-                        return;
-                    }
                     state.sellPayMethod = button.dataset.pay === "GRAM" ? "GRAM" : "XAF";
                     renderSellPayFields();
                 });
             });
+        document.getElementById("sellPayChange")?.addEventListener("click", () => {
+            state.sellPayMethod = null;
+            renderSellPayFields();
+        });
         renderSellPayFields();
     }
 
@@ -5136,6 +5553,7 @@ if (!DOM.pageContainer) {
     /* =====================================================
        VENTE : canal public / privé + photos de preuve
     ===================================================== */
+    const MAX_PROOFS = 4;
 
     function compressImage(file, maxSide = 1280, maxBytes = 700000) {
         return new Promise((resolve, reject) => {
@@ -5184,6 +5602,75 @@ if (!DOM.pageContainer) {
         });
     }
 
+    function renderProofsGrid() {
+        const grid = document.getElementById("sellProofsGrid");
+        const addButton = document.getElementById("sellProofsAdd");
+
+        if (!grid) {
+            return;
+        }
+
+        grid.innerHTML = state.sellProofs
+            .map(
+                (data, index) => `
+                    <div class="proof-thumb">
+                        <img src="${data}" alt="Preuve ${index + 1}">
+                        <button
+                            type="button"
+                            class="proof-remove"
+                            data-proof-remove="${index}"
+                            aria-label="Retirer la photo"
+                        >×</button>
+                    </div>
+                `
+            )
+            .join("");
+
+        grid.querySelectorAll("[data-proof-remove]").forEach((button) => {
+            button.addEventListener("click", () => {
+                state.sellProofs.splice(Number(button.dataset.proofRemove), 1);
+                renderProofsGrid();
+            });
+        });
+
+        if (addButton) {
+            addButton.disabled = state.sellProofs.length >= MAX_PROOFS;
+            addButton.textContent =
+                state.sellProofs.length >= MAX_PROOFS
+                    ? `${MAX_PROOFS} photos maximum`
+                    : state.sellProofs.length
+                    ? `+ Ajouter une photo (${state.sellProofs.length}/${MAX_PROOFS})`
+                    : "+ Ajouter des photos";
+        }
+    }
+
+    function bindProofs() {
+        const input = document.getElementById("sellProofsInput");
+        const addButton = document.getElementById("sellProofsAdd");
+
+        renderProofsGrid();
+
+        addButton?.addEventListener("click", () => input?.click());
+
+        input?.addEventListener("change", async () => {
+            const files = Array.from(input.files || []);
+            input.value = "";
+
+            for (const file of files) {
+                if (state.sellProofs.length >= MAX_PROOFS) {
+                    break;
+                }
+
+                try {
+                    state.sellProofs.push(await compressImage(file));
+                    renderProofsGrid();
+                } catch (error) {
+                    showToast("Photo ignorée", error.message);
+                }
+            }
+        });
+    }
+
     function applyChannelType() {
         const isPrivate = state.sellChannelType === "private";
         const input = document.getElementById("sellUsername");
@@ -5211,13 +5698,18 @@ if (!DOM.pageContainer) {
         const previewBlock = document.getElementById("sellPreviewBlock");
         if (previewBlock) {
             previewBlock.hidden = !isPrivate;
-            previewBlock.style.display = isPrivate ? "" : "none";
+        }
+
+        /* Canal public : vérifié par le bot, aucune photo n'est demandée. */
+        const proofBlock = document.getElementById("sellProofBlock");
+        if (proofBlock) {
+            proofBlock.hidden = !isPrivate;
         }
 
         if (hint) {
             hint.textContent = isPrivate
-                ? "Touche ton canal dans « Canaux détectés » ou colle son ID."
-                : "Entre le @username ou le lien de ton canal public.";
+                ? "Ajoute le bot NexMarket comme administrateur : ton canal apparaît dans « Canaux détectés » (touche-le). Sinon colle ici l'ID du canal. Les acheteurs n'auront pas de lien public."
+                : "Le canal doit être public (avec un @username) et tu dois en être administrateur. Les visiteurs pourront ouvrir ton canal depuis l'annonce.";
         }
     }
 
@@ -5285,7 +5777,7 @@ if (!DOM.pageContainer) {
         if (!state.sellPayMethod) {
             showToast(
                 "Moyen de paiement",
-                "Choisis comment tu veux être payé : JessiKaPay ou GRAM."
+                "Choisis comment tu veux être payé : Mobile Money ou GRAM."
             );
             return;
         }
@@ -5302,28 +5794,19 @@ if (!DOM.pageContainer) {
             return;
         }
 
-        if (payInGram && !(price > 0)) {
-            showToast("Prix invalide", "Entre le prix de ton canal en FCFA.");
-            return;
-        }
-        if (payInGram && state.gramQuoteRefreshing) {
+        const payoutPhone = (document.getElementById("sellPayoutPhone")?.value || "").trim().toUpperCase();
+        if (!payInGram && !/^(JP-?)?[A-Z0-9]{4,20}$/.test(payoutPhone)) {
             showToast(
-                "Cours du GRAM",
-                "Le prix du GRAM est en cours d'actualisation, réessaie dans un instant."
+                "Numéro JessiKaPay",
+                "Entre ton numéro JP (dans ton application JessiKaPay) pour recevoir ton argent."
             );
             return;
         }
-        if (payInGram && !gramXafRate()) {
-            showToast(
-                "Cours du GRAM indisponible",
-                "Réessaie dans un instant."
-            );
-            return;
-        }
-        if (payInGram && gramFromXaf(price) < 1) {
+
+        if (payInGram && price < 1) {
             showToast(
                 "Prix invalide",
-                "Le prix minimum est de 1 GRAM : augmente le prix en FCFA."
+                "Le prix minimum en GRAM est de 1 GRAM."
             );
             return;
         }
@@ -5354,6 +5837,13 @@ if (!DOM.pageContainer) {
             return;
         }
 
+        if (isPrivate && !state.sellProofs.length) {
+            showToast(
+                "Photo de preuve requise",
+                "Ajoute au moins une capture des statistiques de ton canal."
+            );
+            return;
+        }
         if (!category) {
             showToast(
                 "Catégorie requise",
@@ -5426,22 +5916,22 @@ if (!DOM.pageContainer) {
                                     Number(
                                         channelId
                                     ),
-                                price: payInGram ? gramFromXaf(price) : price,
+                                price,
                                 category,
                                 description,
                                 ...(payInGram
-                                    ? {
-                                          currency: "GRAM",
-                                          gram_address: gramAddress,
-                                          price_xaf: price
-                                      }
-                                    : {}),
+                                    ? { currency: "GRAM", gram_address: gramAddress }
+                                    : {
+                                        payout_phone: payoutPhone
+                                    }),
+                                proof_images: isPrivate ? state.sellProofs : [],
                                 ...(isPrivate
                                     ? { preview_images: state.sellPreviews }
                                     : {})
                             })
                     }
                 );
+            state.sellProofs = [];
             state.sellPreviews = [];
             state.sellDraft = null;
             state.sellError = "";
@@ -5604,9 +6094,6 @@ if (!DOM.pageContainer) {
             );
             return;
         }
-        const isGramQuoted =
-            String(listing.currency || "").toUpperCase() === "GRAM" &&
-            listing.price_xaf != null;
         openModal(`
             <div class="modal-header-content">
                 <div>
@@ -5635,21 +6122,18 @@ if (!DOM.pageContainer) {
                     </strong>
                 </div>
                 <label>
-                    ${isGramQuoted ? "Nouveau prix (FCFA)" : "Nouveau prix"}
+                    Nouveau prix
                     <input
                         id="editListingPrice"
                         type="number"
                         min="1"
                         step="1"
                         value="${escapeHTML(
-                            (isGramQuoted ? listing.price_xaf : listing.price) ||
+                            listing.price ||
                             ""
                         )}"
                         required
                     >
-                    ${isGramQuoted
-                        ? `<small class="gram-quote">Payé en GRAM au cours du marché, mis à jour toutes les 10 min.</small>`
-                        : ""}
                 </label>
                 <label>
                     Description
@@ -5728,9 +6212,7 @@ if (!DOM.pageContainer) {
                                 method: "PATCH",
                                 body:
                                     JSON.stringify({
-                                        ...(isGramQuoted
-                                            ? { price_xaf: price }
-                                            : { price }),
+                                        price,
                                         description
                                     })
                             }
@@ -6583,30 +7065,6 @@ if (!DOM.pageContainer) {
                         </div>
                     </div>
                 </div>
-                <div class="profile-wallet">
-                    ${ICONS.wallet}
-                    <div>
-                        <span>
-                            Solde disponible
-                            <button
-                                type="button"
-                                class="balance-eye"
-                                data-balance-toggle
-                            >${ICONS.eye}</button>
-                        </span>
-                        <strong>
-                            ${renderMoney(available, currency)}
-                        </strong>
-                    </div>
-                    <button
-                        type="button"
-                        class="text-button"
-                        data-action="wallet"
-                    >
-                        Wallet
-                        ${ICONS.arrow}
-                    </button>
-                </div>
                 <div class="profile-menu">
                     <button
                         type="button"
@@ -7208,6 +7666,11 @@ if (!DOM.pageContainer) {
     async function navigateTo(
         page
     ) {
+        /* Retour visuel immédiat : la barre s'allume AVANT le chargement. */
+        updateBottomNavigation(
+            page
+        );
+        try {
         switch (page) {
             case "home":
                 await renderHome();
@@ -7225,7 +7688,7 @@ if (!DOM.pageContainer) {
                 await renderProfile();
                 break;
             case "wallet":
-                await renderWallet();
+                await renderProfile();
                 break;
             case "favorites":
                 await renderFavorites();
@@ -7236,19 +7699,35 @@ if (!DOM.pageContainer) {
             default:
                 await renderHome();
         }
-        updateBottomNavigation(
-            page
-        );
         if (
             page ===
             "buy"
         ) {
             setupSearchInput();
         }
+        } catch (error) {
+            console.error("Navigation :", error);
+            showToast(
+                "Page indisponible",
+                "Impossible d'ouvrir cette page. Réessaie."
+            );
+        } finally {
+            updateBottomNavigation(
+                page
+            );
+        }
+    }
+    function navKey(page) {
+        return {
+            transactions: "messages",
+            wallet: "profile",
+            favorites: "profile"
+        }[page] || page;
     }
     function updateBottomNavigation(
         page
     ) {
+        page = navKey(page);
         if (!DOM.bottomNavigation) {
             return;
         }
@@ -7489,7 +7968,7 @@ if (!DOM.pageContainer) {
                 break;
             case "wallet":
                 await navigateTo(
-                    "wallet"
+                    "profile"
                 );
                 break;
             case "transactions":
@@ -7504,12 +7983,6 @@ if (!DOM.pageContainer) {
                 break;
             case "settings":
                 openSettings();
-                break;
-            case "deposit":
-                openWalletDeposit();
-                break;
-            case "withdraw":
-                openWalletWithdraw();
                 break;
             case "view-listing":
                 await openListing(
@@ -7555,6 +8028,14 @@ if (!DOM.pageContainer) {
         if (!DOM.bottomNavigation) {
             return;
         }
+        /* Toute page affichée (même ouverte par un bouton interne) allume son onglet. */
+        if (DOM.pageContainer && window.MutationObserver) {
+            new MutationObserver(() => {
+                if (state.currentPage) {
+                    updateBottomNavigation(state.currentPage);
+                }
+            }).observe(DOM.pageContainer, { childList: true });
+        }
         DOM.bottomNavigation
             .querySelectorAll(
                 "[data-page]"
@@ -7581,7 +8062,7 @@ if (!DOM.pageContainer) {
                 "click",
                 () => {
                     navigateTo(
-                        "wallet"
+                        "profile"
                     );
                 }
             );
@@ -7668,7 +8149,7 @@ function hideSplash() {
    RETOUR APRÈS PAIEMENT / DÉPÔT
 ===================================================== */
 /*
- * Plus de webhook : le serveur vérifie le paiement auprès de JessiKaPay
+ * Le serveur vérifie le paiement auprès de MoneyFusion
  * quand on le lui demande (et toutes les 30 s de lui-même). On le
  * demande ici : au retour dans l'app, puis toutes les 8 s tant qu'un
  * dépôt est en attente (15 minutes maximum).
@@ -7692,7 +8173,7 @@ async function checkPendingDeposit() {
         return;
     }
 
-    // Abandon après 35 minutes (le lien JessiKaPay expire au bout de 30).
+    // Abandon après 35 minutes (la page de paiement expire au bout de 30).
     if (Date.now() - Number(pending.created_at || 0) > 35 * 60 * 1000) {
         sessionStorage.removeItem("nexmarket_pending_deposit");
         return;
@@ -7716,7 +8197,7 @@ async function checkPendingDeposit() {
                 !pending.hinted &&
                 Date.now() - Number(pending.created_at || 0) > 90 * 1000
             ) {
-                // Toujours « pending » chez JessiKaPay : le lien n'a pas été ouvert.
+                // Toujours « pending » chez MoneyFusion : le paiement n'est pas terminé.
                 pending.hinted = true;
                 sessionStorage.setItem(
                     "nexmarket_pending_deposit",
@@ -7724,7 +8205,7 @@ async function checkPendingDeposit() {
                 );
                 showToast(
                     "Paiement non reçu",
-                    "JessiKaPay n'a pas encore reçu ton paiement. Ouvre le lien de paiement depuis Telegram, avec le même compte, puis termine le paiement."
+                    "Ton paiement n'a pas encore été reçu. Rouvre la page de paiement, valide sur ton téléphone puis reviens ici."
                 );
             }
         }
@@ -7758,10 +8239,9 @@ if (!window.__nexmarketDepositRefreshBound) {
     }, 8000);
 }
 
-/* Le lien de paiement JessiKaPay (https://t.me/JessiKaPayBot/app?...) est
-   un lien TELEGRAM : il doit s'ouvrir dans Telegram (openTelegramLink).
-   Avec openLink il s'ouvre comme un site web, JessiKaPay ne reconnaît pas
-   le compte Telegram et le paiement n'est jamais confirmé. */
+/* La page de paiement MoneyFusion est un site web classique : elle s'ouvre
+   dans le navigateur intégré de Telegram (openLink). Un lien t.me éventuel
+   reste ouvert dans Telegram. */
 function openPaymentLink(url) {
     const isTelegramLink = /^https?:\/\/(t|telegram)\.me\//i.test(url);
     if (tg && isTelegramLink && typeof tg.openTelegramLink === "function") {
@@ -7861,11 +8341,6 @@ async function initApp() {
             }
         });
 
-        /* Cours du GRAM : relu toutes les 10 minutes (comme le serveur). */
-        setInterval(() => {
-            loadRates().then(() => updateGramQuote());
-        }, 10 * 60 * 1000);
-
         workDone = true;
         setSplashStatus("Presque prêt…");
     })();
@@ -7889,6 +8364,12 @@ async function initApp() {
     setSplashStatus("Bienvenue !");
     await wait(300);
     hideSplash();
+
+    try {
+        window.__nexOnboard?.();
+    } catch (error) {
+        console.warn("Inscription:", error);
+    }
 
     /* Nexa ID encore absent (réseau lent) : nouvel essai discret. */
     if (!state.user?.nexa_id) {
@@ -7931,15 +8412,6 @@ async function initApp() {
         NAV_HISTORY.goingBack = true;
         await navigateTo(target);
         window.scrollTo(0, 0);
-    }
-
-    function openJessiKaPayBot() {
-        const url = "https://t.me/JessiKaPayBot";
-        if (tg?.openTelegramLink) {
-            tg.openTelegramLink(url);
-        } else {
-            window.open(url, "_blank", "noopener");
-        }
     }
 
     function syncTelegramBackButton() {
@@ -8010,13 +8482,6 @@ async function initApp() {
         if (tg?.BackButton) {
             tg.BackButton.onClick(goBack);
         }
-
-        /* Un seul écouteur pour le bouton « Démarrer @JessiKaPayBot ». */
-        document.addEventListener("click", (event) => {
-            if (event.target.closest("[data-open-jessikapay]")) {
-                openJessiKaPayBot();
-            }
-        });
 
         const topButton = document.createElement("button");
         topButton.type = "button";
