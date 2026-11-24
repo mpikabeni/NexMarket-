@@ -262,9 +262,9 @@
     reports: ["Signalements", "Problèmes signalés par les utilisateurs", loadReports],
     messages: ["Messages", "Discussions des transactions", loadMessages],
     announcements: ["Annonces", "Message à tous les utilisateurs", async () => {}],
-    deposits: ["Dépôts", "Crédités automatiquement dès la confirmation JessiKaPay", loadDeposits],
+    deposits: ["Dépôts", "Crédités automatiquement dès la confirmation MoneyFusion", loadDeposits],
     gram: ["GRAM", "Envois à faire : vendeurs et remboursements", loadGram],
-    withdrawals: ["Retraits à vérifier", "Seulement si JessiKaPay n'a pas pu confirmer (cas rare)", loadWithdrawals],
+    withdrawals: ["Retraits à vérifier", "Retraits en cours ou à vérifier (suivi automatique par MoneyFusion)", loadWithdrawals],
     admins: ["Administrateurs", "Comptes autorisés", loadAdmins],
     wallet: ["Portefeuille NEXA", "Commissions de la plateforme", loadWallet]
   };
@@ -456,10 +456,10 @@
       </div>
       <h3 class="modal-title" style="font-size:14px">Photos de preuve</h3>
       <div class="proofs" id="proofsBox">
-        ${proofs.length ? "" : `<div class="proof-empty">Aucune photo fournie pour cette annonce.</div>`}
+        ${proofs.length ? "" : `<div class="proof-empty">Le vendeur n'a fourni aucune photo de preuve.</div>`}
       </div>
       <div class="modal-actions">
-        <button class="btn ok" id="approveListing" type="button">${"Approuver"}</button>
+        <button class="btn ok" id="approveListing" type="button">${proofs.length ? "Approuver" : "Approuver sans preuve"}</button>
         <button class="btn danger" id="rejectListing" type="button">Refuser</button>
       </div>
     `);
@@ -480,7 +480,8 @@
 
     $("#approveListing").addEventListener("click", (event) =>
       run(event.currentTarget, async () => {
-        await api(`/admin/listings/${id}/approve`, { method: "POST" });
+        if (!proofs.length && !confirm("Aucune photo de preuve. Approuver quand même ?")) return;
+        await api(`/admin/listings/${id}/approve${proofs.length ? "" : "?without_proofs=true"}`, { method: "POST" });
         closeModal();
         toast("Annonce approuvée et publiée.");
         await loadListings();
@@ -686,8 +687,10 @@
             <td>${fmtNum(c.subscriber_count)}</td>
             <td><span class="badge ${tone[c.verification_status] || ""}">${esc(c.verification_status || "—")}</span></td>
             <td>${c.bot_is_admin ? "✓" : "✗"}</td>
-            <td class="actions">${c.verification_status === "removed" ? "" :
-              `<button class="btn danger" data-act="delete-channel" data-id="${c.id}" data-name="${esc(c.title || "ce canal")}" type="button">Supprimer</button>`}</td>
+            <td class="actions">${c.verification_status === "removed" ? `<span class="badge bad">Banni</span>` :
+              `<span class="btn-row">${c.verification_status === "withdrawn" ? `<span class="badge info">Retiré</span>` :
+                `<button class="btn" data-act="delete-channel" data-ban="0" data-id="${c.id}" data-name="${esc(c.title || "ce canal")}" type="button">Retirer</button>`}
+              <button class="btn danger" data-act="delete-channel" data-ban="1" data-id="${c.id}" data-name="${esc(c.title || "ce canal")}" type="button">Bannir</button></span>`}</td>
           </tr>`).join("")
       : `<tr><td colspan="6"><div class="empty-state">Aucun canal.</div></td></tr>`;
   }
@@ -711,8 +714,10 @@
           const badge = u.is_admin
             ? `<span class="badge info">Admin</span>`
             : u.is_active ? `<span class="badge ok">Actif</span>` : `<span class="badge bad">Bloqué</span>`;
-          const actions = u.is_admin ? "" : `
+          const walletBtn = `<button class="btn primary" data-act="wallet-adjust" data-id="${u.id}" data-name="${esc(name)}" type="button">Portefeuille</button>`;
+          const actions = u.is_admin ? `<span class="btn-row">${walletBtn}</span>` : `
             <span class="btn-row">
+              ${walletBtn}
               <button class="btn ${u.is_active ? "" : "ok"}" data-act="toggle-user" data-id="${u.id}" data-active="${u.is_active ? "1" : "0"}" type="button">${u.is_active ? "Bloquer" : "Débloquer"}</button>
               <button class="btn danger" data-act="remove-user" data-id="${u.id}" data-name="${esc(name)}" type="button">Retirer</button>
             </span>`;
@@ -804,12 +809,13 @@
           <tr>
             <td><strong>${esc(w.reference)}</strong></td>
             <td>${fmtMoney(w.amount, w.currency)}</td>
-            <td>${esc(w.jp_number)}</td>
+            <td>${esc(w.destination || "—")}${w.payout_currency ? `<br><small>${esc(w.payout_amount)} ${esc(w.payout_currency)}</small>` : ""}</td>
             <td>${esc(w.failure_reason || "—")}</td>
             <td>${fmtDate(w.created_at)}</td>
-            <td class="actions"><span class="btn-row">
-              <button class="btn ok" data-act="withdrawal" data-id="${w.id}" data-decision="complete" type="button">Versé</button>
-              <button class="btn danger" data-act="withdrawal" data-id="${w.id}" data-decision="fail" type="button">Non versé</button></span></td>
+            <td class="actions"><span class="btn-row">${w.tracked
+              ? `<button class="btn" data-act="recheck-withdrawal" data-id="${w.id}" type="button">Revérifier</button>`
+              : `<button class="btn ok" data-act="withdrawal" data-id="${w.id}" data-decision="complete" type="button">Versé</button>
+              <button class="btn danger" data-act="withdrawal" data-id="${w.id}" data-decision="fail" type="button">Non versé</button>`}</span></td>
           </tr>`).join("")
       : `<tr><td colspan="6"><div class="empty-state">Aucun retrait à vérifier.</div></td></tr>`;
   }
@@ -887,11 +893,39 @@
 
       case "delete-channel":
         run(target, async () => {
-          if (!confirm(`Supprimer définitivement « ${target.dataset.name} » ?\nSes annonces seront annulées et il ne pourra plus être remis en vente.`)) return;
-          const result = await api(`/admin/channels/${id}`, { method: "DELETE" });
-          toast(`Canal supprimé (${result.listings_cancelled} annonce(s) annulée(s)).`);
+          const ban = target.dataset.ban === "1";
+          const question = ban
+            ? `BANNIR définitivement « ${target.dataset.name} » ?\nSes annonces seront annulées et il ne pourra JAMAIS être remis en vente.`
+            : `Retirer « ${target.dataset.name} » de la vente ?\nSes annonces seront annulées. Le vendeur pourra le soumettre à nouveau quand il veut.`;
+          if (!confirm(question)) return;
+          const result = await api(`/admin/channels/${id}?ban=${ban ? "true" : "false"}`, { method: "DELETE" });
+          toast(`${ban ? "Canal banni" : "Canal retiré"} (${result.listings_cancelled} annonce(s) annulée(s)).`);
           await loadChannels();
         });
+        break;
+
+      case "wallet-adjust":
+        openModal(`
+          <h2 class="modal-title">Portefeuille de ${esc(target.dataset.name)}</h2>
+          <p class="sub">Créditer ou retirer de l'argent dans son portefeuille NexMarket. L'action est tracée et l'utilisateur est prévenu.</p>
+          <div class="field"><label>Action</label>
+            <select id="adjAction"><option value="credit">Créditer (ajouter)</option><option value="debit">Retirer</option></select></div>
+          <div class="field"><label>Montant (XAF)</label><input id="adjAmount" type="number" min="1" step="1" inputmode="numeric" placeholder="Ex. 5000"></div>
+          <div class="field"><label>Motif (obligatoire)</label><input id="adjNote" type="text" maxlength="200" placeholder="Ex. Remboursement litige #123"></div>
+          <button class="btn primary" id="adjSubmit" type="button">Valider</button>`);
+        $("#adjSubmit").addEventListener("click", (e) => run(e.currentTarget, async () => {
+          const action = $("#adjAction").value;
+          const amount = Number($("#adjAmount").value);
+          const note = $("#adjNote").value.trim();
+          if (!Number.isInteger(amount) || amount <= 0) return toast("Entre un montant entier valide.", true);
+          if (!note) return toast("Ajoute un motif.", true);
+          if (!confirm(`${action === "credit" ? "Créditer" : "Retirer"} ${amount} XAF ${action === "credit" ? "à" : "de"} ${target.dataset.name} ?`)) return;
+          const result = await api(`/admin/wallets/${id}/adjust`, {
+            method: "POST", body: JSON.stringify({ action, amount, note })
+          });
+          toast(`Fait. Nouveau solde : ${result.available_balance} XAF`);
+          closeModal();
+        }));
         break;
 
       case "toggle-user":
@@ -949,7 +983,7 @@
         run(target, async () => {
           const result = await api(`/admin/deposits/${id}/recheck`, { method: "POST" });
           openModal(`
-            <h3 class="modal-title">Réponse de JessiKaPay</h3>
+            <h3 class="modal-title">Réponse de MoneyFusion</h3>
             <p class="modal-sub">Statut NexMarket : <strong>${esc(result.status)}</strong>${result.paid ? " — wallet crédité." : ""}</p>
             <pre style="white-space:pre-wrap;word-break:break-word;background:var(--surface-2);padding:12px;border-radius:12px;font-size:11.5px">${esc(JSON.stringify(result.provider, null, 2))}</pre>`);
           await loadDeposits();
@@ -982,11 +1016,21 @@
         });
         break;
 
+      case "recheck-withdrawal":
+        run(target, async () => {
+          const result = await api(`/admin/withdrawals/${id}/recheck`, { method: "POST" });
+          toast(result.status === "processing"
+            ? "Toujours en cours chez MoneyFusion."
+            : `Retrait mis à jour : ${result.status}`);
+          await loadWithdrawals();
+        });
+        break;
+
       case "withdrawal":
         run(target, async () => {
           const decision = target.dataset.decision;
           if (!confirm(decision === "complete"
-            ? "Le versement a bien été fait dans JessiKaPay ? Les fonds bloqués seront consommés."
+            ? "Le versement a bien été fait (vérifie dans le tableau de bord MoneyFusion) ? Les fonds bloqués seront consommés."
             : "Le versement N'a PAS été fait ? Les fonds seront rendus à l'utilisateur.")) return;
           const note = (prompt("Note (facultatif) :") || "").trim();
           await api(`/admin/withdrawals/${id}/resolve`, {

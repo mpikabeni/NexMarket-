@@ -6,6 +6,7 @@
 <meta name="theme-color" content="#08080c">
 <title>NexMarket Admin</title>
 <link rel="stylesheet" href="panel.css?v=20261105-dep">
+<link rel="stylesheet" href="theme-v2.css?v=1">
 </head>
 <body>
 
@@ -193,7 +194,7 @@
 
       <!-- ============ DÉPÔTS ============ -->
       <section class="admin-page" data-section="deposits">
-        <div class="section-header"><div><h2>Dépôts</h2><p>Un dépôt payé mais non crédité ? « Revérifier » montre la réponse de JessiKaPay ; « Créditer » ajoute le montant après vérification dans JessiKaPay.</p></div></div>
+        <div class="section-header"><div><h2>Dépôts</h2><p>Un dépôt payé mais non crédité ? « Revérifier » montre la réponse de MoneyFusion ; « Créditer » ajoute le montant après vérification dans MoneyFusion.</p></div></div>
         <div class="filter-bar">
           <select id="depositStatusFilter" class="select-input">
             <option value="">Tous les statuts</option>
@@ -222,9 +223,9 @@
 
       <!-- ============ RETRAITS ============ -->
       <section class="admin-page" data-section="withdrawals">
-        <div class="section-header"><div><h2>Retraits à vérifier</h2><p>Statut inconnu (délai dépassé) : vérifie dans JessiKaPay puis tranche.</p></div></div>
+        <div class="section-header"><div><h2>Retraits en cours / à vérifier</h2><p>Les retraits avec jeton sont suivis automatiquement (« Revérifier » force la relecture). Sans jeton (statut inconnu) : vérifie dans MoneyFusion puis tranche.</p></div></div>
         <div class="table-panel"><div class="table-wrapper"><table>
-          <thead><tr><th>Référence</th><th>Montant</th><th>Compte JP</th><th>Note</th><th>Date</th><th></th></tr></thead>
+          <thead><tr><th>Référence</th><th>Montant</th><th>Destination</th><th>Note</th><th>Date</th><th></th></tr></thead>
           <tbody id="withdrawalsTableBody"></tbody>
         </table></div></div>
       </section>
