@@ -49,3 +49,5 @@ v30
 - Barre de navigation : l'onglet s'allume immédiatement (même si la page plante ou charge lentement).
 - Vente : le vendeur saisit son numéro JessiKaPay (JP), vérifié en direct (nom du titulaire).
 - Admin : bouton « Portefeuille » (créditer / retirer) sur chaque utilisateur.
+
+v32 — inscription en UN seul écran (pays, téléphone, conditions) ; « numéro de téléphone » au lieu de « Mobile Money ».

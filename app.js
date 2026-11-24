@@ -3116,9 +3116,12 @@ if (!DOM.pageContainer) {
     function openPurchasePayment(listing) {
         const user = state.user || {};
         const mine = String(user.country || "").toUpperCase();
-        const options = DEPOSIT_COUNTRIES.map((c) =>
-            `<option value="${escapeHTML(c.code)}" ${c.code === mine ? "selected" : ""}>${escapeHTML(c.name)} (${escapeHTML(c.dial)})</option>`
-        ).join("");
+        const buyCountries = worldCountries();
+        const buyChoice = { country: buyCountries.some((c) => c.code === mine) ? mine : "" };
+        const buyLabel = () => {
+            const c = buyCountries.find((x) => x.code === buyChoice.country);
+            return c ? `${c.name} (${c.dial})` : "Choisis ton pays";
+        };
         openModal(`
             <div class="wallet-modal">
                 <div class="modal-header-content modal-header-spaced">
@@ -3132,13 +3135,16 @@ if (!DOM.pageContainer) {
                     <div class="modal-field">
                         <span class="modal-field-label">Pays du paiement</span>
                         <div id="buyCountryRow" class="buy-country-row">
-                            <b>${escapeHTML((DEPOSIT_COUNTRIES.find((c) => c.code === mine) || {}).name || "Choisis ton pays")}</b>
+                            <b id="buyCountryLabel">${escapeHTML(buyLabel())}</b>
                             <button type="button" id="buyCountryChange" class="link-change" style="margin:0">Changer</button>
                         </div>
-                        <select id="buyCountry" class="buy-select hidden">${options}</select>
+                        <div id="buyCountryPicker" class="onboard hidden">
+                            <input id="buyCountrySearch" class="country-search" type="search" placeholder="Rechercher ton pays" autocomplete="off">
+                            <div class="country-grid" id="buyCountryList"></div>
+                        </div>
                     </div>
                     <div class="modal-field">
-                        <label for="buyPhone" class="modal-field-label">Numéro Mobile Money</label>
+                        <label for="buyPhone" class="modal-field-label">Numéro de téléphone</label>
                         <input id="buyPhone" type="tel" inputmode="tel" value="${escapeHTML(user.phone || "")}" placeholder="Ton numéro, sans l'indicatif" required>
                         <small class="modal-field-hint">Tu choisis ton réseau (MTN, Airtel, Orange…) sur la page de paiement. Ton argent reste bloqué en sécurité jusqu'à la livraison du canal.</small>
                     </div>
@@ -3148,24 +3154,53 @@ if (!DOM.pageContainer) {
                     <button type="submit" class="primary-action full-width modal-submit">${STEP_ICONS.check}Payer maintenant</button>
                 </form>
             </div>`);
-        const buyKnown = DEPOSIT_COUNTRIES.some((c) => c.code === mine);
-        const buySelect = document.getElementById("buyCountry");
         const buyRow = document.getElementById("buyCountryRow");
-        if (!buyKnown && buySelect && buyRow) {
-            buyRow.classList.add("hidden");
-            buySelect.classList.remove("hidden");
-        }
-        document.getElementById("buyCountryChange")?.addEventListener("click", () => {
+        const buyPicker = document.getElementById("buyCountryPicker");
+        const buyList = document.getElementById("buyCountryList");
+        let buyLast = "";
+        buyList.innerHTML = buyCountries.map((c) => {
+            const letter = (c.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").charAt(0) || "#").toUpperCase();
+            const head = letter !== buyLast ? `<div class="country-letter">${escapeHTML(letter)}</div>` : "";
+            buyLast = letter;
+            return `${head}<button type="button" class="country-option${c.code === buyChoice.country ? " selected" : ""}" data-code="${escapeHTML(c.code)}">
+                <strong>${escapeHTML(c.name)}</strong><small>${escapeHTML(c.dial)}</small></button>`;
+        }).join("");
+        const openBuyPicker = () => {
             buyRow?.classList.add("hidden");
-            buySelect?.classList.remove("hidden");
-            buySelect?.focus();
+            buyPicker?.classList.remove("hidden");
+            buyList.querySelector(".selected")?.scrollIntoView({ block: "center" });
+        };
+        if (!buyChoice.country) {
+            openBuyPicker();
+        }
+        document.getElementById("buyCountryChange")?.addEventListener("click", openBuyPicker);
+        document.getElementById("buyCountrySearch")?.addEventListener("input", (event) => {
+            const q = event.target.value.trim().toLowerCase();
+            buyList.querySelectorAll(".country-option").forEach((o) => {
+                o.hidden = q && !o.textContent.toLowerCase().includes(q);
+            });
+            buyList.querySelectorAll(".country-letter").forEach((l) => {
+                l.hidden = Boolean(q);
+            });
+        });
+        buyList.querySelectorAll(".country-option").forEach((button) => {
+            button.addEventListener("click", () => {
+                buyChoice.country = button.dataset.code;
+                document.getElementById("buyCountryLabel").textContent = buyLabel();
+                buyPicker.classList.add("hidden");
+                buyRow.classList.remove("hidden");
+            });
         });
         document.getElementById("buyForm")?.addEventListener("submit", async (event) => {
             event.preventDefault();
             const button = event.target.querySelector("button[type=submit]");
             const phone = cleanWithdrawPhone(document.getElementById("buyPhone")?.value);
             if (!/^\+?\d{6,15}$/.test(phone)) {
-                showModalError("Numéro invalide", "Entre ton numéro Mobile Money, sans l'indicatif.");
+                showModalError("Numéro invalide", "Entre ton numéro de téléphone, sans l'indicatif.");
+                return;
+            }
+            if (!buyChoice.country) {
+                showModalError("Pays", "Choisis ton pays.");
                 return;
             }
             button.disabled = true;
@@ -3174,7 +3209,7 @@ if (!DOM.pageContainer) {
                     method: "POST",
                     body: JSON.stringify({
                         listing_id: Number(listing.id),
-                        country: document.getElementById("buyCountry")?.value,
+                        country: buyChoice.country,
                         phone
                     })
                 });
@@ -3789,39 +3824,34 @@ if (!DOM.pageContainer) {
                     <div>
                         <span class="section-kicker">BIENVENUE</span>
                         <h2>Crée ton compte</h2>
-                        <p class="modal-subtitle">3 étapes rapides pour sécuriser tes paiements.</p>
+                        <p class="modal-subtitle">Un seul écran, quelques secondes.</p>
                     </div>
                 </div>
                 <form id="onboardForm" class="modal-form wallet-modal-form" novalidate>
-                    <div class="modal-field" data-step="1">
-                        <div class="profile-card">
-                            <div class="avatar-ring">${photo
-                                ? `<img src="${escapeHTML(photo)}" alt="">`
-                                : `<span>${escapeHTML(name.charAt(0).toUpperCase())}</span>`}</div>
+                    <div class="onboard-me">
+                        <div class="avatar-ring">${photo
+                            ? `<img src="${escapeHTML(photo)}" alt="">`
+                            : `<span>${escapeHTML(name.charAt(0).toUpperCase())}</span>`}</div>
+                        <div>
                             <strong>${escapeHTML(name)}</strong>
                             <small>${user.username ? "@" + escapeHTML(user.username) : "Compte Telegram relié"}</small>
-                            ${user.nexa_id ? `<em>ID ${escapeHTML(user.nexa_id)}</em>` : ""}
                         </div>
                     </div>
-                    <div class="modal-field" data-step="2">
+                    <div class="modal-field">
                         <span class="modal-field-label">Ton pays</span>
                         <input id="onboardSearch" class="country-search" type="search" placeholder="Rechercher ton pays" autocomplete="off">
                         <div class="country-grid" id="onboardCountries"><p class="modal-field-hint">Chargement…</p></div>
-                        <label for="onboardPhone" class="modal-field-label">Numéro Mobile Money</label>
+                    </div>
+                    <div class="modal-field">
+                        <label for="onboardPhone" class="modal-field-label">Numéro de téléphone</label>
                         <div class="phone-input-wrap">
                             <span class="phone-prefix" id="onboardDial">+</span>
                             <input id="onboardPhone" type="tel" inputmode="tel" placeholder="Ton numéro, sans l'indicatif">
                         </div>
                     </div>
-                    <div class="modal-field" data-step="3">
-                        <ul class="secure-list">
-                            <li><span>${STEP_ICONS.shield}</span>Ton argent reste bloqué jusqu'à la livraison du canal.</li>
-                            <li><span>${STEP_ICONS.check}</span>Chaque litige est examiné par l'équipe NexMarket.</li>
-                            <li><span>${STEP_ICONS.user}</span>Ne partage jamais tes codes ni tes mots de passe.</li>
-                        </ul>
-                        <label class="terms-check"><input type="checkbox" id="onboardTerms"><i></i>J'accepte les conditions d'utilisation de NexMarket.</label>
-                        <button type="submit" class="primary-action full-width modal-submit">${STEP_ICONS.check}Créer mon compte</button>
-                    </div>
+                    <p class="onboard-note">${STEP_ICONS.shield}<span>Ton argent reste bloqué jusqu'à la livraison du canal.</span></p>
+                    <label class="terms-check"><input type="checkbox" id="onboardTerms"><i></i>J'accepte les conditions d'utilisation de NexMarket.</label>
+                    <button type="submit" class="primary-action full-width modal-submit">${STEP_ICONS.check}Créer mon compte</button>
                     <div id="modalError" class="modal-inline-error hidden" role="alert">
                         <span class="modal-error-dot"></span><div><strong></strong><span></span></div>
                     </div>
@@ -3829,24 +3859,17 @@ if (!DOM.pageContainer) {
             </div>`);
         DOM.modalContainer?.classList.add("locked");
         const form = document.getElementById("onboardForm");
-        mountSteps(form, {
-            labels: ["Profil", "Pays & numéro", "Sécurité"],
-            icons: [STEP_ICONS.user, STEP_ICONS.globe, STEP_ICONS.shield],
-            validate: (step) => {
-                if (step !== 2) {
-                    return null;
-                }
-                if (!choice.country) {
-                    return ["Pays", "Choisis ton pays."];
-                }
-                if (!/^\+?\d{6,15}$/.test(cleanWithdrawPhone(document.getElementById("onboardPhone")?.value))) {
-                    return ["Numéro invalide", "Entre ton numéro Mobile Money, sans l'indicatif."];
-                }
-                return null;
-            }
-        });
         form.addEventListener("submit", async (event) => {
             event.preventDefault();
+            const phone = cleanWithdrawPhone(document.getElementById("onboardPhone")?.value);
+            if (!choice.country) {
+                showModalError("Pays", "Choisis ton pays.");
+                return;
+            }
+            if (!/^\+?\d{6,15}$/.test(phone)) {
+                showModalError("Numéro invalide", "Entre ton numéro de téléphone, sans l'indicatif.");
+                return;
+            }
             if (!document.getElementById("onboardTerms")?.checked) {
                 showModalError("Conditions", "Coche la case pour accepter les conditions.");
                 return;
@@ -3854,11 +3877,7 @@ if (!DOM.pageContainer) {
             try {
                 const updated = await apiRequest("/users/me/onboarding", {
                     method: "POST",
-                    body: JSON.stringify({
-                        country: choice.country,
-                        phone: cleanWithdrawPhone(document.getElementById("onboardPhone")?.value),
-                        accept_terms: true
-                    })
+                    body: JSON.stringify({ country: choice.country, phone, accept_terms: true })
                 });
                 state.user = { ...state.user, ...updated };
                 DOM.modalContainer?.classList.remove("locked");
@@ -3873,14 +3892,22 @@ if (!DOM.pageContainer) {
         if (!grid) {
             return;
         }
-        grid.innerHTML = list.map((c) => `
-            <button type="button" class="country-option" data-code="${escapeHTML(c.code)}" data-dial="${escapeHTML(c.dial || "")}">
+        let lastLetter = "";
+        grid.innerHTML = list.map((c) => {
+            const letter = (c.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").charAt(0) || "#").toUpperCase();
+            const head = letter !== lastLetter ? `<div class="country-letter">${escapeHTML(letter)}</div>` : "";
+            lastLetter = letter;
+            return `${head}<button type="button" class="country-option" data-code="${escapeHTML(c.code)}" data-dial="${escapeHTML(c.dial || "")}">
                 <strong>${escapeHTML(c.name)}</strong><small>${escapeHTML(c.dial || "")}</small>
-            </button>`).join("");
+            </button>`;
+        }).join("");
         document.getElementById("onboardSearch")?.addEventListener("input", (event) => {
             const q = event.target.value.trim().toLowerCase();
             grid.querySelectorAll(".country-option").forEach((o) => {
                 o.hidden = q && !o.textContent.toLowerCase().includes(q);
+            });
+            grid.querySelectorAll(".country-letter").forEach((l) => {
+                l.hidden = Boolean(q);
             });
         });
         grid.querySelectorAll(".country-option").forEach((button) => {
