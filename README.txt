@@ -59,3 +59,6 @@ v36 — annonces GRAM : le vendeur choisit la devise de son prix (toutes les dev
 v37 — pastille « 1 GRAM = … » dans n'importe quelle devise (touche pour changer), mise à jour en direct toutes les 10 min.
 v38 — page de vente : lien vers @JessiKaPayBot pour récupérer le numéro JP.
 v39 — le numéro JP est demandé à l'inscription (vérifié), puis réutilisé : la page de vente ne le redemande plus (lien « Changer »).
+v40 — GRAM : noms des devises en français, compte à rebours fiable, pastille masquée sur la page de vente, champs aérés.
+v41 — animation d'achat (anneaux, bouclier, confettis, vibration) ; referrer no-referrer.
+v42 — cours GRAM mondial (médiane CoinGecko+Gate+Binance+OKX), liste de devises en feuille stylée, pays « Bientôt disponible » à l'achat.

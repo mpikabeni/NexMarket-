@@ -584,14 +584,91 @@
         const wanted = state.tickerCurrency || displayCurrency();
         return table[wanted] ? wanted : "XAF";
     }
+    const CURRENCY_NAMES_FR = {
+        XAF: "Franc CFA (Afrique centrale)", XOF: "Franc CFA (Afrique de l'Ouest)", EUR: "Euro",
+        USD: "Dollar des États-Unis", GBP: "Livre sterling", NGN: "Naira nigérian", GHS: "Cédi ghanéen",
+        MAD: "Dirham marocain", DZD: "Dinar algérien", TND: "Dinar tunisien", EGP: "Livre égyptienne",
+        CDF: "Franc congolais", GNF: "Franc guinéen", RWF: "Franc rwandais", BIF: "Franc burundais",
+        KMF: "Franc comorien", DJF: "Franc djiboutien", MGA: "Ariary malgache", MUR: "Roupie mauricienne",
+        KES: "Shilling kényan", UGX: "Shilling ougandais", TZS: "Shilling tanzanien", ETB: "Birr éthiopien",
+        ZAR: "Rand sud-africain", ZMW: "Kwacha zambien", AOA: "Kwanza angolais", MZN: "Metical mozambicain",
+        SLE: "Leone sierra-léonais", LRD: "Dollar libérien", GMD: "Dalasi gambien", CVE: "Escudo cap-verdien",
+        MRU: "Ouguiya mauritanien", STN: "Dobra santoméen", SDG: "Livre soudanaise", CAD: "Dollar canadien",
+        CHF: "Franc suisse", CNY: "Yuan chinois", JPY: "Yen japonais", INR: "Roupie indienne", BRL: "Réal brésilien",
+        TRY: "Livre turque", AED: "Dirham des Émirats arabes unis", SAR: "Riyal saoudien", QAR: "Riyal qatari",
+        AUD: "Dollar australien", MXN: "Peso mexicain", KRW: "Won sud-coréen", PKR: "Roupie pakistanaise",
+        THB: "Baht thaïlandais", IDR: "Roupie indonésienne", VND: "Dông vietnamien", PHP: "Peso philippin",
+        HTG: "Gourde haïtienne", RUB: "Rouble russe", AFN: "Afghani afghan"
+    };
     function currencyLabel(code) {
-        const clean = code === "XAF" ? "FCFA" : code;
-        try {
-            const name = new Intl.DisplayNames(["fr"], { type: "currency" }).of(code);
-            return `${clean} — ${name}`;
-        } catch (error) {
-            return clean;
+        let name = CURRENCY_NAMES_FR[code] || "";
+        if (!name) {
+            try {
+                const found = new Intl.DisplayNames(["fr"], { type: "currency" }).of(code);
+                name = found && found !== code ? found.charAt(0).toUpperCase() + found.slice(1) : "";
+            } catch (error) { /* code seul */ }
         }
+        return name ? `${code} — ${name}` : code;
+    }
+    /* Liste de devises : feuille qui monte, recherche, « Populaires » puis A→Z. */
+    function openCurrencyPicker(current, onPick) {
+        document.getElementById("currencySheet")?.remove();
+        const table = state.rates?.gram?.usd_table || {};
+        const popular = ["XAF", "XOF", "EUR", "USD", "NGN", "GHS", "MAD", "CDF", "GNF", "ZAR", "GBP", "CAD"].filter((c) => table[c]);
+        const others = Object.keys(table)
+            .filter((c) => !popular.includes(c))
+            .sort((a, b) => currencyLabel(a).slice(6).localeCompare(currencyLabel(b).slice(6), "fr"));
+        const row = (code) => {
+            const label = currencyLabel(code);
+            const name = label.includes(" — ") ? label.split(" — ")[1] : "";
+            return `<button type="button" class="cur-row${code === current ? " selected" : ""}" data-code="${code}">
+                <span class="cur-badge">${escapeHTML(code === "XAF" || code === "XOF" ? "F CFA" : code)}</span>
+                <span class="cur-text"><strong>${escapeHTML(code)}</strong><small>${escapeHTML(name)}</small></span>
+                <span class="cur-check">✓</span>
+            </button>`;
+        };
+        const sheet = document.createElement("div");
+        sheet.id = "currencySheet";
+        sheet.className = "cur-sheet";
+        sheet.innerHTML = `
+            <div class="cur-backdrop"></div>
+            <div class="cur-panel">
+                <div class="cur-handle"></div>
+                <h3>Devise de ton prix</h3>
+                <input class="country-search" type="search" id="curSearch" placeholder="Rechercher (euro, naira, USD…)" autocomplete="off">
+                <div class="cur-list" id="curList">
+                    <div class="country-letter" data-head>Populaires</div>
+                    ${popular.map(row).join("")}
+                    <div class="country-letter" data-head>Toutes les devises (A → Z)</div>
+                    ${others.map(row).join("")}
+                </div>
+            </div>`;
+        document.body.appendChild(sheet);
+        const close = () => {
+            sheet.classList.add("leaving");
+            setTimeout(() => sheet.remove(), 260);
+        };
+        sheet.querySelector(".cur-backdrop").addEventListener("click", close);
+        sheet.querySelector("#curSearch").addEventListener("input", (event) => {
+            const q = event.target.value.trim().toLowerCase();
+            sheet.querySelectorAll(".cur-row").forEach((r) => {
+                r.hidden = q && !r.textContent.toLowerCase().includes(q);
+            });
+            sheet.querySelectorAll("[data-head]").forEach((h) => { h.hidden = Boolean(q); });
+        });
+        sheet.querySelectorAll(".cur-row").forEach((r) => {
+            r.addEventListener("click", () => {
+                onPick(r.dataset.code);
+                close();
+            });
+        });
+        sheet.querySelector(".cur-row.selected")?.scrollIntoView({ block: "center" });
+    }
+    function currencyButtonHTML(code) {
+        const label = currencyLabel(code);
+        const name = label.includes(" — ") ? label.split(" — ")[1] : "";
+        return `<span class="cur-badge">${escapeHTML(code === "XAF" || code === "XOF" ? "F CFA" : code)}</span>
+            <span class="cur-text"><strong>${escapeHTML(code)}</strong><small>${escapeHTML(name)}</small></span><i>▾</i>`;
     }
     function gramCurrencyOptions(selected) {
         const table = state.rates?.gram?.usd_table || {};
@@ -607,13 +684,13 @@
     function updateGramWidgets() {
         const rate = gramXaf();
         const left = gramSecondsLeft();
-        const clock = left === null ? "" : ` · actualisation dans ${fmtClock(left)}`;
+        const clock = left === null ? "" : left === 0 ? " · actualisation…" : ` · actualisation dans ${fmtClock(left)}`;
 
         /* Pastille « cours du moment » : 1 GRAM dans la devise choisie. */
         const cur = tickerCurrency();
         const one = gramPrice1(cur);
         let ticker = document.getElementById("gramTicker");
-        const show = Boolean(one) && gramEnabled() && ["buy", "sell", "home"].includes(state.currentPage);
+        const show = Boolean(one) && gramEnabled() && ["buy", "home"].includes(state.currentPage);
         if (show && !ticker) {
             ticker = document.createElement("button");
             ticker.type = "button";
@@ -3269,7 +3346,10 @@ if (!DOM.pageContainer) {
         const buyChoice = { country: buyCountries.some((c) => c.code === mine) ? mine : "" };
         const buyLabel = () => {
             const c = buyCountries.find((x) => x.code === buyChoice.country);
-            return c ? `${c.name} (${c.dial})` : "Choisis ton pays";
+            if (!c) {
+                return "Choisis ton pays";
+            }
+            return payAvailable(c.code) ? `${c.name} (${c.dial})` : `${c.name} · Bientôt disponible`;
         };
         openModal(`
             <div class="wallet-modal">
@@ -3306,21 +3386,45 @@ if (!DOM.pageContainer) {
         const buyRow = document.getElementById("buyCountryRow");
         const buyPicker = document.getElementById("buyCountryPicker");
         const buyList = document.getElementById("buyCountryList");
-        let buyLast = "";
-        buyList.innerHTML = buyCountries.map((c) => {
-            const letter = (c.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").charAt(0) || "#").toUpperCase();
-            const head = letter !== buyLast ? `<div class="country-letter">${escapeHTML(letter)}</div>` : "";
-            buyLast = letter;
-            return `${head}<button type="button" class="country-option${c.code === buyChoice.country ? " selected" : ""}" data-code="${escapeHTML(c.code)}">
-                <strong>${escapeHTML(c.name)}</strong><small>${escapeHTML(c.dial)}</small></button>`;
-        }).join("");
+        const buyRowHTML = (c) => {
+            const ok = payAvailable(c.code);
+            return `<button type="button" class="country-option${c.code === buyChoice.country ? " selected" : ""}${ok ? "" : " soon"}" data-code="${escapeHTML(c.code)}" data-ok="${ok ? 1 : 0}">
+                <strong>${escapeHTML(c.name)}</strong>
+                ${ok ? `<small>${escapeHTML(c.dial)}</small>` : `<small class="soon-badge">Bientôt disponible</small>`}
+            </button>`;
+        };
+        const renderBuyList = () => {
+            const open = buyCountries.filter((c) => payAvailable(c.code));
+            const soon = buyCountries.filter((c) => !payAvailable(c.code));
+            buyList.innerHTML =
+                `<div class="country-letter">Disponible maintenant</div>${open.map(buyRowHTML).join("")}` +
+                `<div class="country-letter">Bientôt disponible</div>${soon.map(buyRowHTML).join("")}`;
+            buyList.querySelectorAll(".country-option").forEach((button) => {
+                button.addEventListener("click", () => {
+                    if (button.dataset.ok !== "1") {
+                        showToast("Bientôt disponible", "Le paiement n'est pas encore ouvert dans ce pays.");
+                        return;
+                    }
+                    buyChoice.country = button.dataset.code;
+                    document.getElementById("buyCountryLabel").textContent = buyLabel();
+                    buyPicker.classList.add("hidden");
+                    buyRow.classList.remove("hidden");
+                });
+            });
+        };
+        renderBuyList();
+        loadPayCountries().then(() => {
+            renderBuyList();
+            const label = document.getElementById("buyCountryLabel");
+            if (label) { label.textContent = buyLabel(); }
+        });
         const openBuyPicker = () => {
             buyRow?.classList.add("hidden");
             buyPicker?.classList.remove("hidden");
             buyList.querySelector(".selected")?.scrollIntoView({ block: "center" });
         };
-        if (!buyChoice.country) {
-            openBuyPicker();
+        if (!buyChoice.country || !payAvailable(buyChoice.country)) {
+            if (!buyChoice.country) { openBuyPicker(); }
         }
         document.getElementById("buyCountryChange")?.addEventListener("click", openBuyPicker);
         document.getElementById("buyCountrySearch")?.addEventListener("input", (event) => {
@@ -3330,14 +3434,6 @@ if (!DOM.pageContainer) {
             });
             buyList.querySelectorAll(".country-letter").forEach((l) => {
                 l.hidden = Boolean(q);
-            });
-        });
-        buyList.querySelectorAll(".country-option").forEach((button) => {
-            button.addEventListener("click", () => {
-                buyChoice.country = button.dataset.code;
-                document.getElementById("buyCountryLabel").textContent = buyLabel();
-                buyPicker.classList.add("hidden");
-                buyRow.classList.remove("hidden");
             });
         });
         document.getElementById("buyForm")?.addEventListener("submit", async (event) => {
@@ -3350,6 +3446,10 @@ if (!DOM.pageContainer) {
             }
             if (!buyChoice.country) {
                 showModalError("Pays", "Choisis ton pays.");
+                return;
+            }
+            if (!payAvailable(buyChoice.country)) {
+                showModalError("Bientôt disponible", "Le paiement n'est pas encore ouvert dans ton pays. Choisis un autre pays ou reviens bientôt.");
                 return;
             }
             button.disabled = true;
@@ -3367,7 +3467,7 @@ if (!DOM.pageContainer) {
                 if (data?.payment_link) {
                     openPaymentLink(data.payment_link);
                 }
-                watchPurchase(data?.id);
+                watchPurchase(data?.id, listing);
             } catch (error) {
                 button.disabled = false;
                 showModalError("Paiement impossible", error.message || "Réessaie dans un instant.");
@@ -3375,8 +3475,111 @@ if (!DOM.pageContainer) {
         });
     }
 
+    /* =====================================================
+       ANIMATION D'ACHAT : anneaux, bouclier qui se dessine, confettis,
+       vibration. Se joue quand le paiement d'un canal est confirmé.
+       ===================================================== */
+    function celebratePurchase({ title = "ton canal" } = {}) {
+        document.getElementById("buyCelebration")?.remove();
+        const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+        const overlay = document.createElement("div");
+        overlay.id = "buyCelebration";
+        overlay.className = "buy-celebration";
+        overlay.setAttribute("role", "dialog");
+        overlay.innerHTML = `
+            <canvas class="bc-confetti"></canvas>
+            <div class="bc-stage">
+                <div class="bc-badge">
+                    <span class="bc-ring r1"></span><span class="bc-ring r2"></span><span class="bc-ring r3"></span>
+                    <svg viewBox="0 0 120 120" class="bc-shield" aria-hidden="true">
+                        <path class="bc-shield-path" d="M60 10 L104 28 V58 C104 84 86 102 60 112 C34 102 16 84 16 58 V28 Z"/>
+                        <path class="bc-check" d="M38 62 L54 78 L84 44"/>
+                    </svg>
+                </div>
+                <h2 class="bc-title">Achat confirmé !</h2>
+                <p class="bc-channel">${escapeHTML(String(title))}</p>
+                <div class="bc-chips">
+                    <span>🔒 Fonds bloqués en sécurité</span>
+                    <span>⚡ Livraison prise en charge</span>
+                </div>
+                <button type="button" class="primary-action bc-button">Voir ma transaction</button>
+                <button type="button" class="bc-close">Fermer</button>
+            </div>`;
+        document.body.appendChild(overlay);
+
+        try {
+            const haptic = window.Telegram?.WebApp?.HapticFeedback;
+            haptic?.notificationOccurred("success");
+            setTimeout(() => haptic?.impactOccurred("heavy"), 450);
+            setTimeout(() => haptic?.impactOccurred("light"), 800);
+        } catch (error) { /* vibration indisponible */ }
+
+        /* Confettis (canvas, sans bibliothèque). */
+        const canvas = overlay.querySelector(".bc-confetti");
+        const ctx = canvas.getContext("2d");
+        let raf = 0;
+        const fit = () => {
+            canvas.width = window.innerWidth * devicePixelRatio;
+            canvas.height = window.innerHeight * devicePixelRatio;
+        };
+        fit();
+        const colors = ["#5b7cff", "#22d3ee", "#2fe0a8", "#ffbe55", "#ff5d7a", "#ffffff"];
+        const parts = [];
+        const burst = (count, originY) => {
+            for (let i = 0; i < count; i++) {
+                const angle = (-Math.PI / 2) + (Math.random() - 0.5) * Math.PI * 1.15;
+                const speed = (7 + Math.random() * 11) * devicePixelRatio;
+                parts.push({
+                    x: canvas.width / 2, y: canvas.height * originY,
+                    vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+                    size: (6 + Math.random() * 8) * devicePixelRatio,
+                    rot: Math.random() * 6, vr: (Math.random() - 0.5) * 0.4,
+                    color: colors[(Math.random() * colors.length) | 0],
+                    round: Math.random() > 0.65, life: 1
+                });
+            }
+        };
+        const frame = () => {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            parts.forEach((q) => {
+                q.vy += 0.28 * devicePixelRatio;
+                q.vx *= 0.992;
+                q.x += q.vx; q.y += q.vy; q.rot += q.vr;
+                if (q.y > canvas.height * 0.9) { q.life -= 0.03; }
+                ctx.save();
+                ctx.globalAlpha = Math.max(q.life, 0);
+                ctx.translate(q.x, q.y);
+                ctx.rotate(q.rot);
+                ctx.fillStyle = q.color;
+                if (q.round) { ctx.beginPath(); ctx.arc(0, 0, q.size / 2, 0, 7); ctx.fill(); }
+                else { ctx.fillRect(-q.size / 2, -q.size / 4, q.size, q.size / 2); }
+                ctx.restore();
+            });
+            for (let i = parts.length - 1; i >= 0; i--) {
+                if (parts[i].life <= 0 || parts[i].y > canvas.height + 60) { parts.splice(i, 1); }
+            }
+            if (parts.length) { raf = requestAnimationFrame(frame); }
+        };
+        if (!reduce) {
+            setTimeout(() => { burst(90, 0.42); raf = requestAnimationFrame(frame); }, 500);
+            setTimeout(() => { burst(70, 0.5); if (!raf) { raf = requestAnimationFrame(frame); } }, 1000);
+            setTimeout(() => { burst(50, 0.45); raf = requestAnimationFrame(frame); }, 1600);
+        }
+
+        const close = () => {
+            cancelAnimationFrame(raf);
+            overlay.classList.add("leaving");
+            setTimeout(() => overlay.remove(), 350);
+        };
+        overlay.querySelector(".bc-close").addEventListener("click", close);
+        overlay.querySelector(".bc-button").addEventListener("click", () => {
+            close();
+            navigateTo("transactions").catch(() => {});
+        });
+    }
+
     /* Surveille le paiement (le serveur le fait aussi en tâche de fond). */
-    async function watchPurchase(depositId) {
+    async function watchPurchase(depositId, listing) {
         if (!depositId) {
             return;
         }
@@ -3388,7 +3591,7 @@ if (!DOM.pageContainer) {
                 if (status === "paid") {
                     await loadTransactions();
                     await loadWallet();
-                    showToast("Paiement confirmé", "Tes fonds sont bloqués en sécurité. Un administrateur prend ton achat en charge.");
+                    celebratePurchase({ title: listing?.title || listing?.channel?.title || "ton canal" });
                     return;
                 }
                 if (["failed", "expired", "cancelled", "amount_mismatch"].includes(status)) {
@@ -3522,9 +3725,8 @@ if (!DOM.pageContainer) {
                     if (fresh.status === "cancelled") {
                         showToast("Transaction annulée", "Le paiement n'a pas été reçu à temps.");
                     } else {
-                        showToast("Paiement reçu", "Tes GRAM sont bloqués en sécurité. Un administrateur prend la transaction en charge.");
                         await loadTransactions();
-                        openTransaction(transaction.id);
+                        celebratePurchase({ title: fresh?.listing?.title || fresh?.channel?.title || fresh?.title || transaction?.listing?.title || "ton canal" });
                     }
                 }
             } catch (error) { /* on réessaie au prochain tour */ }
@@ -4103,6 +4305,19 @@ if (!DOM.pageContainer) {
         963: "SY", 964: "IQ", 965: "KW", 966: "SA", 967: "YE", 968: "OM", 970: "PS", 971: "AE", 972: "IL", 973: "BH",
         974: "QA", 975: "BT", 976: "MN", 977: "NP", 992: "TJ", 993: "TM", 994: "AZ", 995: "GE", 996: "KG", 998: "UZ"
     };
+    /* Pays où le paiement est ouvert (les autres : « Bientôt disponible »). */
+    let PAY_COUNTRIES = ["CI", "SN", "TG", "BJ", "BF", "ML", "CM", "GA", "NE", "CG", "CD", "GN", "TD", "GH", "KE", "CF", "GW"];
+    async function loadPayCountries() {
+        try {
+            const data = await apiRequest("/deposits/pay-countries");
+            const codes = (data?.countries || []).map((c) => String(c.code).toUpperCase());
+            if (codes.length) {
+                PAY_COUNTRIES = codes;
+            }
+        } catch (error) { /* liste par défaut conservée */ }
+    }
+    const payAvailable = (code) => PAY_COUNTRIES.includes(String(code || "").toUpperCase());
+
     function worldCountries() {
         let names = null;
         try { names = new Intl.DisplayNames(["fr"], { type: "region" }); } catch (e) { /* codes seuls */ }
@@ -5373,15 +5588,18 @@ if (!DOM.pageContainer) {
                         spellcheck="false" placeholder="UQ… ou EQ… (copiée depuis ton portefeuille Telegram)">
                     <small class="gram-warning">Recopie-la depuis l'app « Argent » de Telegram : une seule lettre fausse, et le paiement est perdu.</small>
                 </label>
+                <div class="gram-price-fields">
                 <label>
                     Devise de ton prix
-                    <select id="sellPriceCurrency" class="buy-select">${gramCurrencyOptions(previousCurrency)}</select>
+                    <input type="hidden" id="sellPriceCurrency" value="${previousCurrency}">
+                    <button type="button" id="sellCurrencyBtn" class="currency-btn">${currencyButtonHTML(previousCurrency)}</button>
                 </label>
                 <label>
                     Prix de vente
                     <input id="sellPrice" type="number" min="1" step="any" placeholder="Ex : 50000" required>
                     <small id="sellGramQuote" class="gram-note"></small>
-                </label>`
+                </label>
+                </div>`
             : `<label>
                     Prix de vente
                     <input id="sellPrice" type="number" min="1" step="1" placeholder="Ex : 50000" required>
@@ -5410,7 +5628,14 @@ if (!DOM.pageContainer) {
         const price = document.getElementById("sellPrice");
         if (price && previousPrice) price.value = previousPrice;
         price?.addEventListener("input", updateGramWidgets);
-        document.getElementById("sellPriceCurrency")?.addEventListener("change", updateGramWidgets);
+        document.getElementById("sellCurrencyBtn")?.addEventListener("click", () => {
+            const hidden = document.getElementById("sellPriceCurrency");
+            openCurrencyPicker(hidden.value, (code) => {
+                hidden.value = code;
+                document.getElementById("sellCurrencyBtn").innerHTML = currencyButtonHTML(code);
+                updateGramWidgets();
+            });
+        });
         const address = document.getElementById("sellGramAddress");
         if (address && previousAddress) address.value = previousAddress;
         updateGramWidgets();
