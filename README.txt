@@ -51,3 +51,9 @@ v30
 - Admin : bouton « Portefeuille » (créditer / retirer) sur chaque utilisateur.
 
 v32 — inscription en UN seul écran (pays, téléphone, conditions) ; « numéro de téléphone » au lieu de « Mobile Money ».
+
+v35 — GRAM au cours : prix saisi en FCFA, montant GRAM recalculé toutes les 10 min (compte à rebours dans le formulaire de vente et pastille « 1 GRAM ≈ … FCFA »).
+
+v36 — annonces GRAM : le vendeur choisit la devise de son prix (toutes les devises du taux de change), conversion en GRAM en direct.
+
+v37 — pastille « 1 GRAM = … » dans n'importe quelle devise (touche pour changer), mise à jour en direct toutes les 10 min.

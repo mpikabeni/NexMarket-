@@ -205,3 +205,15 @@ input:focus,select:focus,textarea:focus{border-color:var(--border-active)!import
 .onboard .country-option.selected{background:linear-gradient(90deg,rgba(91,124,255,.25),transparent)!important;animation:none}
 .onboard .country-option.selected strong{color:#fff;font-weight:700}
 .onboard .country-option.selected small{color:var(--purple-light)}
+
+/* ---- Cours du GRAM en direct ---- */
+.gram-ticker{position:fixed;left:50%;transform:translateX(-50%);z-index:40;
+  bottom:calc(var(--nav-height,84px) + 26px + env(safe-area-inset-bottom,0px));
+  padding:7px 14px;border-radius:999px;font:600 12px Inter,sans-serif;white-space:nowrap;
+  color:var(--purple-light);background:var(--glass);backdrop-filter:blur(14px);
+  -webkit-backdrop-filter:blur(14px);border:1px solid var(--border);
+  box-shadow:0 10px 30px rgba(2,4,14,.45);font-variant-numeric:tabular-nums}
+
+#sellGramQuote{white-space:pre-line}
+button.gram-ticker{cursor:pointer;-webkit-tap-highlight-color:transparent}
+button.gram-ticker:active{transform:translateX(-50%) scale(.96)}

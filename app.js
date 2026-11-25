@@ -533,6 +533,152 @@
         }
         return false;
     }
+    /* ---------- Cours du GRAM : actualisé toutes les 10 minutes ---------- */
+    function gramXaf() {
+        const value = Number(state.rates?.gram?.xaf);
+        return value > 0 ? value : null;
+    }
+    function gramSecondsLeft() {
+        const next = Number(state.rates?.gram?.next_refresh_at);
+        return next > 0 ? Math.max(0, Math.round(next - Date.now() / 1000)) : null;
+    }
+    function fmtClock(total) {
+        const m = String(Math.floor(total / 60)).padStart(2, "0");
+        const s = String(total % 60).padStart(2, "0");
+        return `${m}:${s}`;
+    }
+    function gramFor(price, currency) {
+        const usd = Number(state.rates?.gram?.usd);
+        const units = Number(state.rates?.gram?.usd_table?.[String(currency || "XAF").toUpperCase()]);
+        if (!(usd > 0) || !(units > 0) || !(price > 0)) {
+            return null;
+        }
+        return Math.ceil((price / units / usd) * 100) / 100;
+    }
+    /* Prix d'1 GRAM dans n'importe quelle devise du taux de change. */
+    function gramPrice1(currency) {
+        const usd = Number(state.rates?.gram?.usd);
+        const units = Number(state.rates?.gram?.usd_table?.[String(currency || "XAF").toUpperCase()]);
+        return usd > 0 && units > 0 ? usd * units : null;
+    }
+    function fmtCurrency(value, currency) {
+        const code = String(currency || "XAF").toUpperCase();
+        try {
+            return new Intl.NumberFormat("fr-FR", {
+                style: "currency",
+                currency: code,
+                maximumFractionDigits: value < 10 ? 2 : 0
+            }).format(value);
+        } catch (error) {
+            return `${Math.round(value * 100) / 100} ${code}`;
+        }
+    }
+    function tickerCurrency() {
+        if (state.currentPage === "sell") {
+            const chosen = document.getElementById("sellPriceCurrency")?.value;
+            if (chosen) {
+                return chosen;
+            }
+        }
+        const table = state.rates?.gram?.usd_table || {};
+        const wanted = state.tickerCurrency || displayCurrency();
+        return table[wanted] ? wanted : "XAF";
+    }
+    function currencyLabel(code) {
+        const clean = code === "XAF" ? "FCFA" : code;
+        try {
+            const name = new Intl.DisplayNames(["fr"], { type: "currency" }).of(code);
+            return `${clean} — ${name}`;
+        } catch (error) {
+            return clean;
+        }
+    }
+    function gramCurrencyOptions(selected) {
+        const table = state.rates?.gram?.usd_table || {};
+        const first = ["XAF", "XOF", "EUR", "USD", "NGN", "GHS", "MAD", "CDF", "GNF", "ZAR", "GBP", "CAD"];
+        const known = Object.keys(table);
+        const codes = known.length
+            ? [...first.filter((c) => table[c]), ...known.filter((c) => !first.includes(c)).sort()]
+            : ["XAF", "EUR", "USD"];
+        return codes.map((c) =>
+            `<option value="${c}" ${c === selected ? "selected" : ""}>${escapeHTML(currencyLabel(c))}</option>`
+        ).join("");
+    }
+    function updateGramWidgets() {
+        const rate = gramXaf();
+        const left = gramSecondsLeft();
+        const clock = left === null ? "" : ` · actualisation dans ${fmtClock(left)}`;
+
+        /* Pastille « cours du moment » : 1 GRAM dans la devise choisie. */
+        const cur = tickerCurrency();
+        const one = gramPrice1(cur);
+        let ticker = document.getElementById("gramTicker");
+        const show = Boolean(one) && gramEnabled() && ["buy", "sell", "home"].includes(state.currentPage);
+        if (show && !ticker) {
+            ticker = document.createElement("button");
+            ticker.type = "button";
+            ticker.id = "gramTicker";
+            ticker.className = "gram-ticker";
+            ticker.addEventListener("click", () => {
+                const table = state.rates?.gram?.usd_table || {};
+                const cycle = [...new Set([displayCurrency(), "XAF", "EUR", "USD"])].filter((c) => table[c]);
+                const now = tickerCurrency();
+                state.tickerCurrency = cycle[(cycle.indexOf(now) + 1) % cycle.length] || "XAF";
+                updateGramWidgets();
+            });
+            document.body.appendChild(ticker);
+        }
+        if (ticker) {
+            ticker.hidden = !show;
+            if (show) {
+                ticker.textContent = `1 GRAM = ${fmtCurrency(one, cur)}${clock}`;
+                ticker.title = "Touche pour changer de devise";
+            }
+        }
+
+        /* Conversion en direct dans le formulaire de vente. */
+        const quote = document.getElementById("sellGramQuote");
+        if (quote) {
+            const price = Number(document.getElementById("sellPrice")?.value);
+            const cur = document.getElementById("sellPriceCurrency")?.value || "XAF";
+            const gram = gramFor(price, cur);
+            const unit = gramPrice1(cur);
+            if (!rate || !unit) {
+                quote.textContent = "Cours du GRAM indisponible pour le moment.";
+            } else {
+                const line1 = `1 GRAM = ${fmtCurrency(unit, cur)} (cours actualisé${clock})`;
+                const line2 = gram
+                    ? `\nTon prix ≈ ${gram.toLocaleString("fr-FR", { maximumFractionDigits: 2 })} GRAM maintenant`
+                    : "";
+                quote.textContent = line1 + line2;
+            }
+        }
+    }
+    let gramRefreshing = false;
+    let gramLastTry = 0;
+    async function gramTick() {
+        updateGramWidgets();
+        const left = gramSecondsLeft();
+        const due = left === 0 || (left === null && gramEnabled());
+        if (!due || gramRefreshing || Date.now() - gramLastTry < 30000) {
+            return;
+        }
+        gramRefreshing = true;
+        gramLastTry = Date.now();
+        try {
+            if (await loadRates()) {
+                const typing = ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName);
+                if (state.currentPage === "buy" && !typing) {
+                    navigateTo("buy").catch(() => {});
+                }
+            }
+        } finally {
+            gramRefreshing = false;
+            updateGramWidgets();
+        }
+    }
+    setInterval(gramTick, 1000);
+
     function formatMoney(
         amount,
         currency = "FCFA"
@@ -1783,6 +1929,9 @@ if (!DOM.pageContainer) {
                         <div class="shop-price">
                             <small>Prix</small>
                             <strong>${formatMoney(price, currency)}</strong>
+                            ${String(currency).toUpperCase() === "GRAM" && listing.price_xaf
+                                ? `<small class="gram-fiat">≈ ${formatNumber(listing.price_xaf)} ${listing.base_currency && listing.base_currency !== "XAF" ? escapeHTML(listing.base_currency) : "FCFA"}</small>`
+                                : ""}
                         </div>
                         <span class="shop-cta">Voir ${ICONS.arrow}</span>
                     </div>
@@ -5197,6 +5346,8 @@ if (!DOM.pageContainer) {
 
         const previousPrice = document.getElementById("sellPrice")?.value || "";
         const previousAddress = document.getElementById("sellGramAddress")?.value || "";
+        const previousCurrency = document.getElementById("sellPriceCurrency")?.value
+            || (Object.keys(state.rates?.gram?.usd_table || {}).includes(displayCurrency()) ? displayCurrency() : "XAF");
 
         if (!method) {
             fields.innerHTML = "";
@@ -5211,8 +5362,13 @@ if (!DOM.pageContainer) {
                     <small class="gram-warning">Recopie-la depuis l'app « Argent » de Telegram : une seule lettre fausse, et le paiement est perdu.</small>
                 </label>
                 <label>
-                    Prix de vente (GRAM)
-                    <input id="sellPrice" type="number" min="1" step="0.01" placeholder="Ex : 25" required>
+                    Devise de ton prix
+                    <select id="sellPriceCurrency" class="buy-select">${gramCurrencyOptions(previousCurrency)}</select>
+                </label>
+                <label>
+                    Prix de vente
+                    <input id="sellPrice" type="number" min="1" step="any" placeholder="Ex : 50000" required>
+                    <small id="sellGramQuote" class="gram-note"></small>
                 </label>`
             : `<label>
                     Prix de vente
@@ -5230,8 +5386,11 @@ if (!DOM.pageContainer) {
 
         const price = document.getElementById("sellPrice");
         if (price && previousPrice) price.value = previousPrice;
+        price?.addEventListener("input", updateGramWidgets);
+        document.getElementById("sellPriceCurrency")?.addEventListener("change", updateGramWidgets);
         const address = document.getElementById("sellGramAddress");
         if (address && previousAddress) address.value = previousAddress;
+        updateGramWidgets();
     }
 
     function bindSellPayMethod() {
@@ -5830,11 +5989,14 @@ if (!DOM.pageContainer) {
             return;
         }
 
-        if (payInGram && price < 1) {
-            showToast(
-                "Prix invalide",
-                "Le prix minimum en GRAM est de 1 GRAM."
-            );
+        if (payInGram && !(price > 0)) {
+            showToast("Prix invalide", "Entre ton prix de vente en FCFA.");
+            return;
+        }
+        const priceCurrency = document.getElementById("sellPriceCurrency")?.value || "XAF";
+        const gramAmount = payInGram ? gramFor(price, priceCurrency) : null;
+        if (payInGram && gramAmount !== null && gramAmount < 1) {
+            showToast("Prix trop bas", "Le minimum est de 1 GRAM : augmente ton prix.");
             return;
         }
 
@@ -5947,7 +6109,7 @@ if (!DOM.pageContainer) {
                                 category,
                                 description,
                                 ...(payInGram
-                                    ? { currency: "GRAM", gram_address: gramAddress }
+                                    ? { currency: "GRAM", gram_address: gramAddress, price_currency: priceCurrency }
                                     : {
                                         payout_phone: payoutPhone
                                     }),
