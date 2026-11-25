@@ -57,3 +57,5 @@ v35 — GRAM au cours : prix saisi en FCFA, montant GRAM recalculé toutes les 1
 v36 — annonces GRAM : le vendeur choisit la devise de son prix (toutes les devises du taux de change), conversion en GRAM en direct.
 
 v37 — pastille « 1 GRAM = … » dans n'importe quelle devise (touche pour changer), mise à jour en direct toutes les 10 min.
+v38 — page de vente : lien vers @JessiKaPayBot pour récupérer le numéro JP.
+v39 — le numéro JP est demandé à l'inscription (vérifié), puis réutilisé : la page de vente ne le redemande plus (lien « Changer »).

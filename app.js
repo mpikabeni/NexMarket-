@@ -3998,6 +3998,12 @@ if (!DOM.pageContainer) {
                             <input id="onboardPhone" type="tel" inputmode="tel" placeholder="Ton numéro, sans l'indicatif">
                         </div>
                     </div>
+                    <div class="modal-field">
+                        <label for="onboardJp" class="modal-field-label">Ton numéro JessiKaPay (JP)</label>
+                        <input id="onboardJp" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Ex : JP-123456">
+                        <small id="onboardJpInfo" class="gram-note">Il reçoit l'argent de tes ventes. On ne te le redemandera plus.</small>
+                        <a href="#" class="link-change" data-visit-channel="https://t.me/JessiKaPayBot">💎 Récupérer mon numéro JP dans @JessiKaPayBot</a>
+                    </div>
                     <p class="onboard-note">${STEP_ICONS.shield}<span>Ton argent reste bloqué jusqu'à la livraison du canal.</span></p>
                     <label class="terms-check"><input type="checkbox" id="onboardTerms"><i></i>J'accepte les conditions d'utilisation de NexMarket.</label>
                     <button type="submit" class="primary-action full-width modal-submit">${STEP_ICONS.check}Créer mon compte</button>
@@ -4008,9 +4014,15 @@ if (!DOM.pageContainer) {
             </div>`);
         DOM.modalContainer?.classList.add("locked");
         const form = document.getElementById("onboardForm");
+        setupJpLookup("onboardJp", "onboardJpInfo");
         form.addEventListener("submit", async (event) => {
             event.preventDefault();
             const phone = cleanWithdrawPhone(document.getElementById("onboardPhone")?.value);
+            const jp = (document.getElementById("onboardJp")?.value || "").trim().toUpperCase();
+            if (!/^(JP-?)?[A-Z0-9]{4,20}$/.test(jp)) {
+                showModalError("Numéro JP", "Entre ton numéro JP : récupère-le dans le bot @JessiKaPayBot.");
+                return;
+            }
             if (!choice.country) {
                 showModalError("Pays", "Choisis ton pays.");
                 return;
@@ -4026,7 +4038,7 @@ if (!DOM.pageContainer) {
             try {
                 const updated = await apiRequest("/users/me/onboarding", {
                     method: "POST",
-                    body: JSON.stringify({ country: choice.country, phone, accept_terms: true })
+                    body: JSON.stringify({ country: choice.country, phone, jp_number: jp, accept_terms: true })
                 });
                 state.user = { ...state.user, ...updated };
                 DOM.modalContainer?.classList.remove("locked");
@@ -4905,9 +4917,9 @@ if (!DOM.pageContainer) {
             /^\+?\d{6,15}$/.test(phone)
         );
     }
-    function setupJpLookup() {
-        const input = document.getElementById("sellPayoutPhone");
-        const info = document.getElementById("sellJpInfo");
+    function setupJpLookup(inputId = "sellPayoutPhone", infoId = "sellJpInfo") {
+        const input = document.getElementById(inputId);
+        const info = document.getElementById(infoId);
         if (!input || !info) {
             return;
         }
@@ -5375,12 +5387,23 @@ if (!DOM.pageContainer) {
                     <input id="sellPrice" type="number" min="1" step="1" placeholder="Ex : 50000" required>
                 </label>
                 <label>
-                    Ton numéro JessiKaPay (JP) : tu y reçois ton argent
+                    ${state.user?.jp_number
+                        ? `<span class="jp-saved">💎 Ton argent arrive sur ton compte JessiKaPay : <b>${escapeHTML(state.user.jp_number)}</b>
+                            <button type="button" id="sellJpChange" class="link-change">Changer</button></span>`
+                        : "Ton numéro JessiKaPay (JP) : tu y reçois ton argent"}
                     <input id="sellPayoutPhone" type="text" autocomplete="off" autocapitalize="characters"
-                        spellcheck="false" placeholder="Ex : JP-123456">
-                    <small id="sellJpInfo" class="gram-note">Tu le trouves dans ton application JessiKaPay. Une fois les fonds libérés par l'admin, l'argent arrive directement sur ce numéro.</small>
+                        spellcheck="false" placeholder="Ex : JP-123456"
+                        value="${escapeHTML(state.user?.jp_number || "")}" ${state.user?.jp_number ? "hidden" : ""}>
+                    <small id="sellJpInfo" class="gram-note">Une fois les fonds libérés par l'admin, l'argent arrive directement sur ce numéro.</small>
+                    <a href="#" class="link-change" data-visit-channel="https://t.me/JessiKaPayBot">💎 Récupérer mon numéro JP dans @JessiKaPayBot</a>
                 </label>`;
         if (method !== "GRAM") {
+            document.getElementById("sellJpChange")?.addEventListener("click", (event) => {
+                const input = document.getElementById("sellPayoutPhone");
+                input.hidden = false;
+                input.focus();
+                event.currentTarget.hidden = true;
+            });
             setupJpLookup();
         }
 

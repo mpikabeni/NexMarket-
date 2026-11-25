@@ -217,3 +217,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--border-active)!import
 #sellGramQuote{white-space:pre-line}
 button.gram-ticker{cursor:pointer;-webkit-tap-highlight-color:transparent}
 button.gram-ticker:active{transform:translateX(-50%) scale(.96)}
+
+.jp-saved{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;margin-bottom:8px;
+  border-radius:16px;background:rgba(47,224,168,.08);border:1px solid var(--border);color:var(--text-soft);font-size:13px}
+.jp-saved b{color:var(--text)}
